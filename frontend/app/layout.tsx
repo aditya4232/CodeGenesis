@@ -5,6 +5,7 @@ import { DevelopmentPopup } from "@/components/DevelopmentPopup";
 import { ClerkProvider } from '@clerk/nextjs';
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { CookiesConsent } from "@/components/CookiesConsent";
+import { Analytics } from "@vercel/analytics/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -49,6 +50,7 @@ export default function RootLayout({
           <DevelopmentPopup />
           <ToastProvider />
           <CookiesConsent />
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
