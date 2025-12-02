@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
 from agents.architect import ArchitectAgent
 from agents.engineer import EngineerAgent
@@ -16,10 +16,18 @@ class CodeGenState(TypedDict):
 class CodeGenesisOrchestrator:
     """LangGraph-based orchestrator for the coding workflow."""
     
-    def __init__(self):
-        self.architect = ArchitectAgent()
-        self.engineer = EngineerAgent()
-        self.testsprite = TestSpriteAgent()
+    def __init__(self, user_api_key: Optional[str] = None, user_provider: Optional[str] = None, user_base_url: Optional[str] = None):
+        """
+        Initialize orchestrator with user API credentials.
+        
+        Args:
+            user_api_key: User's own API key (REQUIRED for project generation)
+            user_provider: User's API provider (REQUIRED)
+            user_base_url: Custom base URL (optional)
+        """
+        self.architect = ArchitectAgent(user_api_key, user_provider, user_base_url)
+        self.engineer = EngineerAgent(user_api_key, user_provider, user_base_url)
+        self.testsprite = TestSpriteAgent(user_api_key, user_provider, user_base_url)
         self.vfs = VirtualFileSystem()
         
         # Build the graph

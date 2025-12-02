@@ -1,7 +1,7 @@
 import os
-from typing import TypedDict
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import TypedDict, Optional
 from langchain_core.messages import HumanMessage, SystemMessage
+from api_config import api_config
 
 class ArchitectState(TypedDict):
     """State for the Architect Agent."""
@@ -12,11 +12,25 @@ class ArchitectState(TypedDict):
 class ArchitectAgent:
     """Agent responsible for planning the application structure."""
     
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            google_api_key=api_key,
+    def __init__(self, user_api_key: Optional[str] = None, user_provider: Optional[str] = None, user_base_url: Optional[str] = None):
+        """
+        Initialize Architect Agent.
+        
+        Args:
+            user_api_key: User's own API key (REQUIRED)
+            user_provider: User's API provider (REQUIRED)
+            user_base_url: Custom base URL (optional)
+        """
+        self.user_api_key = user_api_key
+        self.user_provider = user_provider
+        self.user_base_url = user_base_url
+        
+        # Get LLM for user projects (requires user's API key)
+        self.llm = api_config.get_llm(
+            context="user_project",
+            user_api_key=user_api_key,
+            user_provider=user_provider,
+            user_base_url=user_base_url,
             temperature=0.7
         )
     

@@ -1,15 +1,30 @@
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
+from api_config import api_config
 
 class TestSpriteAgent:
     """Agent responsible for generating test scripts."""
     
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            google_api_key=api_key,
+    def __init__(self, user_api_key: Optional[str] = None, user_provider: Optional[str] = None, user_base_url: Optional[str] = None):
+        """
+        Initialize TestSprite Agent.
+        
+        Args:
+            user_api_key: User's own API key (REQUIRED)
+            user_provider: User's API provider (REQUIRED)
+            user_base_url: Custom base URL (optional)
+        """
+        self.user_api_key = user_api_key
+        self.user_provider = user_provider
+        self.user_base_url = user_base_url
+        
+        # Get LLM for user projects
+        self.llm = api_config.get_llm(
+            context="user_project",
+            user_api_key=user_api_key,
+            user_provider=user_provider,
+            user_base_url=user_base_url,
             temperature=0.2
         )
     
