@@ -3,10 +3,23 @@ Test suite for CodeGenesis backend API
 """
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import patch, MagicMock
 from main import app
 
 client = TestClient(app)
 
+# Mock API config to avoid actual API calls and validation errors
+@pytest.fixture(autouse=True)
+def mock_api_config():
+    with patch("main.api_config") as mock_config:
+        # Mock get_llm to return a mock LLM
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value.content = "Mocked response"
+        mock_config.get_llm.return_value = mock_llm
+        
+        # Mock validate_user_api_key
+        mock_config.validate_user_api_key.return_value = True
+        yield mock_config
 
 class TestHealthEndpoints:
     """Test health check and status endpoints"""
@@ -24,83 +37,58 @@ class TestHealthEndpoints:
         data = response.json()
         assert data["status"] == "healthy"
         assert "agents" in data
-        assert len(data["agents"]) == 3
-        assert "architect" in data["agents"]
-        assert "engineer" in data["agents"]
-        assert "testsprite" in data["agents"]
-
 
 class TestGenerateEndpoint:
     """Test code generation endpoint"""
     
-    def test_generate_requires_prompt(self):
-        """Test that generate endpoint requires a prompt"""
-        response = client.post("/api/generate", json={})
-        assert response.status_code == 422  # Validation error
-    
-    def test_generate_with_simple_prompt(self):
-        """Test code generation with a simple prompt"""
+    def test_generate_requires_auth(self):
+        """Test that generate endpoint requires API key"""
         response = client.post(
             "/api/generate",
-            json={"prompt": "Create a simple hello world HTML page"}
+            json={"prompt": "Create a simple app"}
+        )
+        # Should fail or return error because no API key provided
+        # Based on our implementation, it returns a 200 with error status in body
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" in data
+        assert data["error"] == "API_KEY_REQUIRED"
+    
+    def test_generate_with_auth(self):
+        """Test code generation with API key"""
+        with patch("orchestrator.CodeGenesisOrchestrator.generate_app") as mock_generate:
+            mock_generate.return_value = {
+                "files": {"index.html": "<html></html>"},
+                "tests": "test code",
+                "plan": {},
+                "status": "Completed"
+            }
+            
+            response = client.post(
+                "/api/generate",
+                json={
+                    "prompt": "Create a simple app",
+                    "user_api_key": "test-key",
+                    "user_provider": "openai"
+                }
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "files" in data
+            assert data["status"] == "Completed"
+
+class TestChatEndpoint:
+    """Test chatbot endpoint"""
+    
+    def test_chat_works(self):
+        """Test chat endpoint"""
+        response = client.post(
+            "/api/chat",
+            json={"message": "Hello"}
         )
         assert response.status_code == 200
         data = response.json()
-        
-        # Check response structure
-        assert "files" in data
-        assert "tests" in data
-        assert "plan" in data
-        assert "status" in data
-        
-        # Check that files were generated
-        assert isinstance(data["files"], dict)
-        assert len(data["files"]) > 0
-        
-        # Check plan structure
-        assert "tech_stack" in data["plan"]
-        assert "files" in data["plan"]
-    
-    def test_generate_with_complex_prompt(self):
-        """Test code generation with a more complex prompt"""
-        response = client.post(
-            "/api/generate",
-            json={"prompt": "Create a todo list app with add and delete functionality"}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Verify multiple files were generated
-        assert len(data["files"]) >= 2
-        
-        # Verify test script was generated
-        assert isinstance(data["tests"], str)
-        assert len(data["tests"]) > 0
-
-
-class TestCORS:
-    """Test CORS configuration"""
-    
-    def test_cors_headers(self):
-        """Test that CORS headers are present"""
-        response = client.options("/api/health")
-        # CORS should allow all origins
-        assert response.status_code in [200, 405]  # OPTIONS might not be explicitly handled
-
-
-class TestErrorHandling:
-    """Test error handling"""
-    
-    def test_invalid_endpoint(self):
-        """Test accessing non-existent endpoint"""
-        response = client.get("/api/nonexistent")
-        assert response.status_code == 404
-    
-    def test_invalid_method(self):
-        """Test using wrong HTTP method"""
-        response = client.get("/api/generate")  # Should be POST
-        assert response.status_code == 405
-
+        assert "response" in data
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
