@@ -7,7 +7,7 @@ import {
     listConfiguredProviders,
     storeModelPreference,
     getModelPreference
-} from '@/lib/secure-keys';
+} from '../../../lib/secure-keys';
 
 /**
  * GET /api/keys - List all configured providers
