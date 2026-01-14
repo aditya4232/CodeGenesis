@@ -64,6 +64,11 @@ export default function ApiKeysPage() {
             })
 
             if (response.ok) {
+                // Save to localStorage for immediate use in code generation
+                const storedKeys = JSON.parse(localStorage.getItem("codegenesis_api_keys") || "{}")
+                storedKeys[provider] = apiKey
+                localStorage.setItem("codegenesis_api_keys", JSON.stringify(storedKeys))
+
                 toast.success(`${provider.toUpperCase()} API key saved securely`, {
                     description: "Your key is encrypted and stored in the database"
                 })
@@ -92,6 +97,11 @@ export default function ApiKeysPage() {
             })
 
             if (response.ok) {
+                // Remove from localStorage
+                const storedKeys = JSON.parse(localStorage.getItem("codegenesis_api_keys") || "{}")
+                delete storedKeys[provider]
+                localStorage.setItem("codegenesis_api_keys", JSON.stringify(storedKeys))
+
                 toast.success(`${provider.toUpperCase()} API key deleted`)
                 fetchConfiguredProviders()
             } else {

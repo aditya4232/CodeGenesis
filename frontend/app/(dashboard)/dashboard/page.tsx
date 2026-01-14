@@ -9,11 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@clerk/nextjs';
 import { getUserProjects, type Project } from '@/lib/supabase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { NewProjectModal } from '@/components/modals/new-project-modal';
 
 export default function Dashboard() {
     const { user, isLoaded } = useUser();
+    const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
     const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
@@ -152,7 +154,10 @@ export default function Dashboard() {
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{ duration: 0.3, delay: index * 0.1 }}
                                 >
-                                    <Card className="group cursor-pointer hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5">
+                                    <Card
+                                        className="group cursor-pointer hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
+                                        onClick={() => router.push(`/dashboard/editor?id=${project.id}`)}
+                                    >
                                         <CardHeader>
                                             <CardTitle className="flex items-center justify-between">
                                                 {project.name}

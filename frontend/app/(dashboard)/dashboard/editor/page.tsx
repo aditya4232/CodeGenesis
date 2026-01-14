@@ -61,10 +61,17 @@ export default function EditorPage() {
                 console.log(`Loading project: ${projectId}`)
                 const response = await fetch(`/api/projects/${projectId}`)
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `Failed to load project (${response.status})`);
+            if (!response.ok) {
+                let errorMessage = `Failed to load project (${response.status})`;
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch (jsonError) {
+                    const errorText = await response.text().catch(() => 'Unknown error');
+                    errorMessage = `HTTP ${response.status}: ${response.statusText || errorText.slice(0, 100)}`;
                 }
+                throw new Error(errorMessage);
+            }
 
                 const data = await response.json()
                 console.log('Project data loaded:', data)
@@ -80,6 +87,8 @@ export default function EditorPage() {
                     setCode(loadedCode)
                     setLastSavedCode(loadedCode)
                     console.log('Code restored from project files')
+                } else {
+                    console.log('No saved code found, using default')
                 }
 
                 // Restore chat history from generations
@@ -108,7 +117,9 @@ export default function EditorPage() {
                     router.push("/dashboard")
                     return
                 }
-                toast.error("Failed to load project")
+                toast.error("Failed to load project", {
+                    description: error.message
+                })
             }
         }
         loadProject()
@@ -311,7 +322,7 @@ export default function EditorPage() {
 
             <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border border-white/10 bg-black/40 overflow-hidden">
                 {/* Chat Panel */}
-                <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
+                <ResizablePanel defaultSize={40} minSize={20} maxSize={45}>
                     <div className="flex flex-col h-full bg-black/20">
                         <div className="p-3 border-b border-white/10 font-medium text-sm flex justify-between items-center">
                             <span>AI Architect</span>
@@ -323,8 +334,8 @@ export default function EditorPage() {
                             <div className="space-y-4">
                                 {messages.map((msg, i) => (
                                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] rounded-lg p-3 text-sm ${msg.role === 'user'
-                                            ? 'bg-primary text-white'
+                                        <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'max-w-[75%]'} rounded-lg p-3 text-sm break-words ${msg.role === 'user'
+                                            ? 'bg-primary text-primary-foreground'
                                             : 'bg-white/10 text-slate-200'
                                             }`}>
                                             {msg.content}
@@ -369,7 +380,7 @@ export default function EditorPage() {
                 <ResizableHandle withHandle />
 
                 {/* Preview/Code Panel */}
-                <ResizablePanel defaultSize={70}>
+                <ResizablePanel defaultSize={80}>
                     <div className="h-full bg-[#1e1e1e]">
                         {activeTab === 'preview' ? (
                             <div className="h-full flex flex-col">

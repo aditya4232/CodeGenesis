@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getUserProjects, Project, deleteProject, updateProject } from "@/lib/supabase"
 import { useUser } from "@clerk/nextjs"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { NewProjectModal } from "@/components/modals/new-project-modal"
 import {
@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label"
 
 export default function ProjectsPage() {
     const { user } = useUser()
+    const router = useRouter()
     const [projects, setProjects] = useState<Project[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
@@ -173,20 +174,34 @@ export default function ProjectsPage() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.05 }}
                         >
-                            <Card className="bg-black/40 border-white/10 hover:border-primary/50 transition-all group h-full flex flex-col">
+                            <Card
+                                className="bg-black/40 border-white/10 hover:border-primary/50 transition-all group h-full flex flex-col cursor-pointer"
+                                onClick={(e) => {
+                                    // Don't navigate if clicking on the dropdown or its trigger
+                                    if ((e.target as Element).closest('[data-radix-dropdown-menu-trigger], [data-radix-dropdown-menu-content]')) {
+                                        return
+                                    }
+                                    router.push(`/dashboard/editor?id=${project.id}`)
+                                }}
+                            >
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
-                                        <Link href={`/dashboard/editor?id=${project.id}`} className="flex-1 space-y-1 block">
+                                        <div className="flex-1 space-y-1 block">
                                             <CardTitle className="text-xl group-hover:text-primary transition-colors">
                                                 {project.name}
                                             </CardTitle>
                                             <CardDescription className="line-clamp-2">
                                                 {project.description || "No description provided."}
                                             </CardDescription>
-                                        </Link>
+                                        </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 -mr-2"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
                                                     <MoreVertical className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
@@ -203,7 +218,7 @@ export default function ProjectsPage() {
                                         </DropdownMenu>
                                     </div>
                                 </CardHeader>
-                                <Link href={`/dashboard/editor?id=${project.id}`} className="flex-1 flex flex-col">
+                                <div className="flex-1 flex flex-col">
                                     <CardContent className="flex-1">
                                         <div className="flex flex-wrap gap-2">
                                             {project.tech_stack?.map((tech) => (
@@ -225,7 +240,7 @@ export default function ProjectsPage() {
                                             {project.deployment_url && <Globe className="h-4 w-4 hover:text-white cursor-pointer" />}
                                         </div>
                                     </CardFooter>
-                                </Link>
+                                </div>
                             </Card>
                         </motion.div>
                     ))}
