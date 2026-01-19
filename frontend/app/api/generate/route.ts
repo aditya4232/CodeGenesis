@@ -1,71 +1,220 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase for logging (optional)
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
+
+export const runtime = 'edge'; // Use Edge Runtime for streaming
+
+const SYSTEM_PROMPT = `
+You are CodeGenesis AI (Neural Core v2.6), an elite Senior Software Architect and Autonomous Developer.
+Your mandate is to architect and execute high-performance, visually stunning apps.
+
+**COMMUNICATION PROTOCOL:**
+1. **Identify**: Always introduce yourself as CodeGenesis AI if asked.
+2. **Clarification (MCQ Mode)**: If a request is vague, ask 3-5 specific Multiple Choice Questions (MCQs) to understand requirements (tech stack, design vibe, core features).
+3. **Execution Summary**: When generating code, ALWAYS provide:
+   - **Task List**: Granular list of what you are doing.
+   - **Files Manifest**: Precisely which files are being Created or Edited.
+4. **Markdown Mastery**: Use ### for headers and **bold** for emphasis. Use TABLES for tech stacks or feature comparisons.
+
+**ARCHITECTURAL WORKFLOW:**
+1. **Strategic Inquiry**: Ask MCQs first for new projects.
+2. **Phase 1: Blueprint Projection**: Propose a plan (JSON type "plan").
+3. **Phase 2: High-Fidelity Execution**: Generate code (JSON type "code").
+
+**DESIGN STANDARDS:**
+- UI: Premium, Visionary, Glassmorphism, Rounded-3xl.
+- Stack: Next.js 15+, React 19, Tailwind v4, Supabase.
+
+Current Instruction Stream:
+`;
 
 export async function POST(req: Request) {
     try {
-        const { prompt, model, code } = await req.json();
-        const openaiKey = req.headers.get('x-openai-key');
-        const anthropicKey = req.headers.get('x-anthropic-key');
+        const { messages, model, provider, apiKey, files } = await req.json();
 
-        if (!prompt) {
-            return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+        if (!apiKey) {
+            return NextResponse.json({ error: 'API Key missing' }, { status: 401 });
         }
 
-        let generatedCode = '';
+        // Construct the full prompt context
+        const conversationHistory = messages.map((m: any) =>
+            `${m.role.toUpperCase()}: ${m.content}`
+        ).join('\n');
 
-        if (model === 'claude-3-5-sonnet' && anthropicKey) {
-            const anthropic = new Anthropic({ apiKey: anthropicKey });
-            const msg = await anthropic.messages.create({
-                model: "claude-3-5-sonnet-20240620",
-                max_tokens: 4096,
-                messages: [
-                    {
-                        role: "user",
-                        content: `You are an expert software architect and developer. 
-            Generate a single HTML file containing the complete solution (HTML, CSS, JS) for the following request: "${prompt}".
-            
-            ${code ? `Here is the existing code to modify:\n${code}` : ''}
-            
-            Return ONLY the code, no markdown formatting, no explanations.`
-                    }
-                ]
-            });
+        const fileContext = Object.entries(files || {}).map(([name, content]) =>
+            `--- ${name} ---\n${content}\n---`
+        ).join('\n');
 
-            // Handle content block properly
-            const contentBlock = msg.content[0];
-            if (contentBlock.type === 'text') {
-                generatedCode = contentBlock.text;
-            }
-        } else if (openaiKey) {
-            // Default to OpenAI if key exists or if model is gpt-4o
-            const openai = new OpenAI({ apiKey: openaiKey });
-            const completion = await openai.chat.completions.create({
-                messages: [
-                    {
-                        role: "system",
-                        content: "You are an expert software architect. Generate a single HTML file containing the complete solution. Return ONLY the code, no markdown."
-                    },
-                    {
-                        role: "user",
-                        content: `${prompt} ${code ? `\n\nExisting code:\n${code}` : ''}`
-                    }
-                ],
-                model: "gpt-4o",
+        const distinctPrompt = `
+${SYSTEM_PROMPT}
+
+**EXISTING FILES:**
+${fileContext || "No files yet."}
+
+**CONVERSATION HISTORY:**
+${conversationHistory}
+
+**TRANSMISSION FORMAT:**
+Phase-specific JSON structures are REQUIRED for interface synchronization.
+
+**[Type: Chat]** - Use this for greetings, questions, or non-technical chatter.
+\`\`\`json
+{
+  "type": "chat",
+  "content": "Hello! I am CodeGenesis AI. How can I assist your architectural vision today?"
+}
+\`\`\`
+
+**[Type: Doc]** - Use this for generating formal documents (PRDs, Technical Specs, Manuals).
+\`\`\`json
+{
+  "type": "doc",
+  "title": "Project Requirement Document",
+  "content": "<h1>Title</h1><p>Content using rich HTML...</p>"
+}
+\`\`\`
+
+**[Type: PPT]** - Use this for generating slide-based presentations.
+\`\`\`json
+{
+  "type": "ppt",
+  "title": "Project Pitch Deck",
+  "slides": [
+    { "title": "Vision", "content": "<li>High-level goals</li>" },
+    { "title": "Architecture", "content": "<img src='...' />" }
+  ]
+}
+\`\`\`
+
+**[Type: Plan]**
+\`\`\`json
+{
+  "type": "plan",
+  "thought": "Brief summary of the plan.",
+  "steps": [
+    { "step": 1, "description": "Detailed description of the first step." },
+    { "step": 2, "description": "Detailed description of the second step." }
+  ]
+}
+\`\`\`
+
+**[Type: Code]**
+\`\`\`json
+{
+  "type": "code",
+  "thought": "Brief summary of code generation.",
+  "task_list": ["Task 1", "Task 2"],
+  "files": [
+    { "name": "index.html", "action": "create", "content": "..." }
+  ]
+}
+\`\`\`
+
+**INSTRUCTION:**
+Based on the user message, decide the best projection mode (Chat, Doc, PPT, Plan, or Code).
+For document requests, use the "doc" type with rich HTML formatting.
+For pitches or presentations, use the "ppt" type.
+If the request is vague, stay in "Chat" mode and ask MCQs.
+Introduce yourself as CodeGenesis AI (Neural Core v2.6).
+`;
+
+        // Call the appropriate provider
+        let responseStream;
+
+        if (provider === 'groq') {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: SYSTEM_PROMPT },
+                        { role: "user", content: distinctPrompt }
+                    ],
+                    model: model || 'llama-3.3-70b-versatile',
+                    temperature: 0.7,
+                    max_tokens: 8000,
+                    stream: true
+                })
             });
-            generatedCode = completion.choices[0].message.content || '';
+            responseStream = res.body;
+        } else if (provider === 'openrouter') {
+            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://codegenesis.app',
+                },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: SYSTEM_PROMPT },
+                        { role: "user", content: distinctPrompt }
+                    ],
+                    model: model || 'google/gemini-2.0-flash-exp:free',
+                    temperature: 0.7,
+                    stream: true
+                })
+            });
+            responseStream = res.body;
         } else {
-            return NextResponse.json({
-                error: 'No valid API key provided. Please configure your API keys in Settings.'
-            }, { status: 401 });
+            // Default/Fallback (OpenAI format)
+            const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: SYSTEM_PROMPT },
+                        { role: "user", content: distinctPrompt }
+                    ],
+                    model: model || 'gpt-4-turbo',
+                    temperature: 0.7,
+                    stream: true
+                })
+            });
+            responseStream = res.body;
         }
 
-        // Clean up markdown code blocks if present
-        generatedCode = generatedCode.replace(/```html/g, '').replace(/```/g, '');
+        if (!responseStream) throw new Error('Failed to get response stream');
 
-        return NextResponse.json({ code: generatedCode });
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+
+        const transformStream = new TransformStream({
+            async transform(chunk, controller) {
+                const text = decoder.decode(chunk);
+                const lines = text.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            const content = data.choices[0]?.delta?.content || '';
+                            if (content) {
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                            }
+                        } catch (e) { }
+                    }
+                }
+            }
+        });
+
+        return new Response(responseStream.pipeThrough(transformStream), {
+            headers: { 'Content-Type': 'text/event-stream' }
+        });
+
     } catch (error: any) {
-        console.error('Generation error:', error);
-        return NextResponse.json({ error: error.message || 'Failed to generate code' }, { status: 500 });
+        console.error('Generate Error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

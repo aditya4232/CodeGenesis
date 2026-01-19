@@ -140,6 +140,49 @@ class APIConfigManager:
                 temperature=temperature
             )
         
+        # ========== FREE API PROVIDERS ==========
+        
+        elif provider == "groq":
+            # Groq - Ultra-fast LPU inference (FREE tier: 14,400 req/day for Llama 3.1 8B)
+            # Get free key at: https://console.groq.com
+            return ChatOpenAI(
+                model="llama-3.3-70b-versatile",  # Best free model for coding
+                openai_api_key=api_key,
+                openai_api_base="https://api.groq.com/openai/v1",
+                temperature=temperature
+            )
+        
+        elif provider == "google_ai":
+            # Google AI Studio - FREE Gemini access
+            # Get free key at: https://aistudio.google.com/apikey
+            return ChatOpenAI(
+                model="gemini-2.0-flash-exp",  # Latest free model
+                openai_api_key=api_key,
+                openai_api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
+                temperature=temperature
+            )
+        
+        elif provider == "cloudflare":
+            # Cloudflare Workers AI - 10,000 FREE requests/day
+            # Requires account_id in base_url or as env var
+            account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+            return ChatOpenAI(
+                model="@cf/meta/llama-3.1-8b-instruct",
+                openai_api_key=api_key,
+                openai_api_base=f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
+                temperature=temperature
+            )
+        
+        elif provider == "openrouter_free":
+            # OpenRouter with FREE models only (50 req/day limit)
+            return ChatOpenAI(
+                model="meta-llama/llama-3.2-3b-instruct:free",  # Free model
+                openai_api_key=api_key,
+                openai_api_base="https://openrouter.ai/api/v1",
+                temperature=temperature,
+                default_headers={"HTTP-Referer": "https://codegenesis.app", "X-Title": "CodeGenesis"}
+            )
+        
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 

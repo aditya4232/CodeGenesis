@@ -1,308 +1,194 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { Search, Filter, Plus, FolderGit2, MoreVertical, Github, Globe, Trash2, Edit2, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { getUserProjects, Project, deleteProject, updateProject } from "@/lib/supabase"
-import { useUser } from "@clerk/nextjs"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
-import { NewProjectModal } from "@/components/modals/new-project-modal"
+import { useState, useEffect } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+    Plus, Search, Filter, Grid, List, MoreVertical,
+    Trash2, Edit, ExternalLink, Code2, Globe, Laptop
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useUser } from '@clerk/nextjs';
+import { getUserProjects, type Project } from '@/lib/supabase';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { NewProjectModal } from '@/components/modals/new-project-modal';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 export default function ProjectsPage() {
-    const { user } = useUser()
-    const router = useRouter()
-    const [projects, setProjects] = useState<Project[]>([])
-    const [isLoading, setIsLoading] = useState(true)
-    const [searchQuery, setSearchQuery] = useState("")
-    const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
-
-    // Rename state
-    const [isRenameOpen, setIsRenameOpen] = useState(false)
-    const [projectToRename, setProjectToRename] = useState<Project | null>(null)
-    const [newName, setNewName] = useState("")
-    const [isRenaming, setIsRenaming] = useState(false)
-
-    // Delete state
-    const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-    const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
-    const [isDeleting, setIsDeleting] = useState(false)
+    const { user, isLoaded } = useUser();
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(true);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [activeFilter, setActiveFilter] = useState('all');
+    const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
 
     useEffect(() => {
-        async function fetchProjects() {
-            if (!user) return
-            try {
-                const data = await getUserProjects(user.id)
-                setProjects(data)
-            } catch (error) {
-                toast.error("Failed to load projects")
-            } finally {
-                setIsLoading(false)
+        const loadProjects = async () => {
+            if (user?.id) {
+                const userProjects = await getUserProjects(user.id);
+                setProjects(userProjects);
+                setIsLoading(false);
             }
-        }
-        fetchProjects()
-    }, [user])
+        };
+        if (isLoaded && user) loadProjects();
+    }, [user, isLoaded]);
 
-    const handleRename = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!projectToRename || !newName.trim()) return
+    // Filtering Logic
+    const filteredProjects = projects.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesFilter = activeFilter === 'all' || p.framework === activeFilter;
+        return matchesSearch && matchesFilter;
+    });
 
-        setIsRenaming(true)
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this project?")) return;
+
         try {
-            const updated = await updateProject(projectToRename.id, { name: newName })
-            if (updated) {
-                setProjects(projects.map(p => p.id === updated.id ? updated : p))
-                toast.success("Project renamed")
-                setIsRenameOpen(false)
-            } else {
-                throw new Error("Failed to rename")
-            }
+            await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+            setProjects(prev => prev.filter(p => p.id !== id));
+            toast.success("Project deleted");
         } catch (error) {
-            toast.error("Failed to rename project")
-        } finally {
-            setIsRenaming(false)
+            toast.error("Failed to delete project");
         }
     }
-
-    const handleDelete = async () => {
-        if (!projectToDelete) return
-
-        setIsDeleting(true)
-        try {
-            await deleteProject(projectToDelete.id)
-            setProjects(projects.filter(p => p.id !== projectToDelete.id))
-            toast.success("Project deleted successfully")
-            setIsDeleteOpen(false)
-            setProjectToDelete(null)
-        } catch (error: any) {
-            console.error('Delete error:', error)
-            toast.error("Failed to delete project", {
-                description: error.message || "An unexpected error occurred"
-            })
-        } finally {
-            setIsDeleting(false)
-        }
-    }
-
-    const openRename = (project: Project) => {
-        setProjectToRename(project)
-        setNewName(project.name)
-        setIsRenameOpen(true)
-    }
-
-    const openDelete = (project: Project) => {
-        setProjectToDelete(project)
-        setIsDeleteOpen(true)
-    }
-
-    const filteredProjects = projects.filter(project =>
-        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
 
     return (
-        <div className="space-y-8" suppressHydrationWarning>
+        <div className="space-y-8 p-1">
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-                    <p className="text-muted-foreground">Manage and organize your AI-generated applications.</p>
+                    <motion.h1
+                        initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                        className="text-3xl font-bold tracking-tight text-white"
+                    >
+                        Projects
+                    </motion.h1>
+                    <motion.p
+                        initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
+                        className="text-muted-foreground mt-1"
+                    >
+                        Manage and organize your AI-generated applications.
+                    </motion.p>
                 </div>
-                <Button onClick={() => setIsNewProjectOpen(true)} className="gap-2 bg-primary hover:bg-primary/90">
-                    <Plus className="h-4 w-4" />
-                    New Project
-                </Button>
+                <motion.div
+                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                    className="flex gap-2"
+                >
+                    <Button onClick={() => setIsNewProjectOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-lg shadow-indigo-500/20">
+                        <Plus className="h-4 w-4" /> New Project
+                    </Button>
+                </motion.div>
             </div>
 
-            <div className="flex items-center gap-4">
-                <div className="relative flex-1 max-w-md">
+            {/* Controls */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-[#0c0c0e] p-2 rounded-xl border border-white/5">
+                <div className="relative w-full md:w-96">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Search projects..."
-                        className="pl-9 bg-black/20 border-white/10"
+                        className="pl-9 bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
-                <Button variant="outline" size="icon" className="border-white/10">
-                    <Filter className="h-4 w-4" />
-                </Button>
-            </div>
 
-            {isLoading ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-[200px] rounded-xl bg-white/5 animate-pulse" />
+                <div className="flex items-center gap-1 bg-white/5 p-1 rounded-lg">
+                    {['all', 'react', 'nextjs', 'vanilla'].map((filter) => (
+                        <button
+                            key={filter}
+                            onClick={() => setActiveFilter(filter)}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all capitalize ${activeFilter === filter
+                                    ? 'bg-indigo-500 text-white shadow-sm'
+                                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                                }`}
+                        >
+                            {filter === 'vanilla' ? 'HTML/CSS' : filter}
+                        </button>
                     ))}
                 </div>
-            ) : filteredProjects.length === 0 ? (
-                <div className="text-center py-20 border border-dashed border-white/10 rounded-xl bg-white/5">
-                    <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                        <FolderGit2 className="h-8 w-8 text-primary" />
+            </div>
+
+            {/* Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {isLoading ? (
+                    Array.from({ length: 8 }).map((_, i) => (
+                        <div key={i} className="h-64 rounded-2xl bg-[#0c0c0e] border border-white/5 animate-pulse" />
+                    ))
+                ) : filteredProjects.length === 0 ? (
+                    <div className="col-span-full h-96 flex flex-col items-center justify-center text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-[#0c0c0e]/50">
+                        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                            <Search className="h-8 w-8 opacity-20" />
+                        </div>
+                        <p className="text-lg font-medium text-white">No projects found</p>
+                        <p className="text-sm">Try adjusting your filters or create a new project.</p>
+                        <Button variant="link" onClick={() => { setSearchQuery(''); setActiveFilter('all') }} className="mt-2 text-indigo-400">
+                            Clear filters
+                        </Button>
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">No projects found</h3>
-                    <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                        {searchQuery ? "Try adjusting your search query." : "Start by creating your first AI-powered application."}
-                    </p>
-                    {!searchQuery && (
-                        <Button onClick={() => setIsNewProjectOpen(true)}>Create Project</Button>
-                    )}
-                </div>
-            ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredProjects.map((project, index) => (
+                ) : (
+                    filteredProjects.map((project, i) => (
                         <motion.div
                             key={project.id}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
+                            transition={{ delay: i * 0.05 }}
                         >
-                            <Card
-                                className="bg-black/40 border-white/10 hover:border-primary/50 transition-all group h-full flex flex-col cursor-pointer"
-                                onClick={(e) => {
-                                    // Don't navigate if clicking on the dropdown or its trigger
-                                    if ((e.target as Element).closest('[data-radix-dropdown-menu-trigger], [data-radix-dropdown-menu-content]')) {
-                                        return
-                                    }
-                                    router.push(`/dashboard/editor?id=${project.id}`)
-                                }}
+                            <div
+                                onClick={() => router.push(`/dashboard/editor?id=${project.id}`)}
+                                className="group bg-[#0c0c0e] hover:bg-[#121214] border border-white/5 hover:border-indigo-500/50 rounded-2xl p-5 transition-all cursor-pointer h-full flex flex-col relative overflow-hidden"
                             >
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex-1 space-y-1 block">
-                                            <CardTitle className="text-xl group-hover:text-primary transition-colors">
-                                                {project.name}
-                                            </CardTitle>
-                                            <CardDescription className="line-clamp-2">
-                                                {project.description || "No description provided."}
-                                            </CardDescription>
-                                        </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 -mr-2"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="bg-[#09090b] border-white/10">
-                                                <DropdownMenuItem onClick={() => openRename(project)} className="gap-2 cursor-pointer">
-                                                    <Edit2 className="h-4 w-4" />
-                                                    Rename
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => openDelete(project)} className="gap-2 text-red-500 focus:text-red-500 focus:bg-red-500/10 cursor-pointer">
-                                                    <Trash2 className="h-4 w-4" />
-                                                    Delete
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                {/* Hover Gradient */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+                                <div className="flex justify-between items-start mb-4 relative z-10">
+                                    <div className="h-10 w-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xl shadow-sm">
+                                        {project.framework === 'nextjs' ? '▲' : project.framework === 'react' ? '⚛️' : '🌐'}
                                     </div>
-                                </CardHeader>
-                                <div className="flex-1 flex flex-col">
-                                    <CardContent className="flex-1">
-                                        <div className="flex flex-wrap gap-2">
-                                            {project.tech_stack?.map((tech) => (
-                                                <span key={tech} className="px-2 py-1 rounded-md bg-white/5 text-xs font-medium text-muted-foreground border border-white/5">
-                                                    {tech}
-                                                </span>
-                                            ))}
-                                            {(!project.tech_stack || project.tech_stack.length === 0) && (
-                                                <span className="px-2 py-1 rounded-md bg-white/5 text-xs font-medium text-muted-foreground border border-white/5">
-                                                    HTML/CSS
-                                                </span>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                    <CardFooter className="border-t border-white/5 pt-4 flex justify-between text-xs text-muted-foreground">
-                                        <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>
-                                        <div className="flex gap-2">
-                                            {project.repository_url && <Github className="h-4 w-4 hover:text-white cursor-pointer" />}
-                                            {project.deployment_url && <Globe className="h-4 w-4 hover:text-white cursor-pointer" />}
-                                        </div>
-                                    </CardFooter>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white -mr-2">
+                                                <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="bg-[#151515] border-white/10 text-white">
+                                            <DropdownMenuItem onClick={() => router.push(`/dashboard/editor?id=${project.id}`)}><Edit className="h-4 w-4 mr-2" /> Edit</DropdownMenuItem>
+                                            <DropdownMenuItem className="text-red-400 hover:text-red-300" onClick={(e) => handleDelete(e, project.id!)}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
-                            </Card>
-                        </motion.div>
-                    ))}
-                </div>
-            )}
-            <NewProjectModal open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen} />
 
-            {/* Rename Dialog */}
-            <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
-                <DialogContent className="bg-[#09090b] border-white/10 text-white">
-                    <DialogHeader>
-                        <DialogTitle>Rename Project</DialogTitle>
-                        <DialogDescription>
-                            Enter a new name for your project.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleRename}>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
-                                <Input
-                                    id="name"
-                                    value={newName}
-                                    onChange={(e) => setNewName(e.target.value)}
-                                    className="bg-black/20 border-white/10"
-                                />
+                                <div className="relative z-10 flex-1">
+                                    <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors mb-1">{project.name}</h3>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">{project.description || 'No description provided.'}</p>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between relative z-10">
+                                    <Badge variant="secondary" className="bg-white/5 text-[10px] text-muted-foreground border-white/5 font-normal">
+                                        {project.framework}
+                                    </Badge>
+                                    <span className="text-[10px] text-muted-foreground bg-[#0a0a0a] px-2 py-1 rounded-full border border-white/5">
+                                        {new Date(project.updated_at).toLocaleDateString()}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => setIsRenameOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isRenaming} className="bg-primary hover:bg-primary/90">
-                                {isRenaming && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Save Changes
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                        </motion.div>
+                    ))
+                )}
+            </div>
 
-            {/* Delete Dialog */}
-            <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-                <DialogContent className="bg-[#09090b] border-white/10 text-white">
-                    <DialogHeader>
-                        <DialogTitle>Delete Project</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>
-                        <Button
-                            variant="destructive"
-                            disabled={isDeleting}
-                            onClick={handleDelete}
-                            className="bg-red-500 hover:bg-red-600"
-                        >
-                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Delete Project
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <NewProjectModal open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen} />
         </div>
-    )
+    );
 }

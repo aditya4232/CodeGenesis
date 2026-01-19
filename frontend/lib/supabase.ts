@@ -28,6 +28,8 @@ export interface Project {
     updated_at: string;
     repository_url?: string;
     deployment_url?: string;
+    framework?: string;
+    config?: any;
 }
 
 // User profile operations

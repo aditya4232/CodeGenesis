@@ -10,13 +10,16 @@ import {
     Settings,
     Code2,
     LifeBuoy,
-    LogOut
+    LogOut,
+    Bot
 } from 'lucide-react';
 import { useClerk } from '@clerk/nextjs';
+import { motion } from 'framer-motion';
 
 const sidebarItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
     { icon: FolderGit2, label: 'Projects', href: '/dashboard/projects' },
+    { icon: Bot, label: 'AI Agent', href: '/dashboard/agent' },
     { icon: Code2, label: 'Editor', href: '/dashboard/editor' },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
 ];
@@ -26,29 +29,24 @@ export function Sidebar() {
     const { signOut } = useClerk();
 
     return (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-background/50 backdrop-blur-xl transition-transform" suppressHydrationWarning>
+        <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-white/5 bg-[#050507]/60 backdrop-blur-3xl transition-all duration-500 ease-in-out" suppressHydrationWarning>
             <div className="flex h-full flex-col" suppressHydrationWarning>
                 {/* Logo */}
-                <div className="flex h-16 items-center border-b border-border px-6" suppressHydrationWarning>
-                    <div className="flex items-center gap-2 font-bold text-xl tracking-tight" suppressHydrationWarning>
-                        <div className="relative h-8 w-8" suppressHydrationWarning>
-                            <Image
-                                src="/icon.png"
-                                alt="CodeGenesis Logo"
-                                fill
-                                sizes="32px"
-                                className="object-contain"
-                            />
+                <div className="flex h-24 items-center px-8" suppressHydrationWarning>
+                    <div className="flex items-center gap-3 font-black text-2xl tracking-tighter group cursor-pointer" suppressHydrationWarning>
+                        <div className="relative h-10 w-10 flex items-center justify-center bg-indigo-600 rounded-2xl shadow-[0_0_20px_rgba(79,70,229,0.3)] group-hover:scale-110 group-hover:rotate-6 transition-all duration-500" suppressHydrationWarning>
+                            <Code2 className="h-6 w-6 text-white" />
                         </div>
-                        <span className="bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-                            CodeGenesis
-                        </span>
+                        <div className="flex flex-col leading-none">
+                            <span className="text-white">Code</span>
+                            <span className="text-white/40 text-xs font-mono tracking-widest uppercase mt-1">Genesis</span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Navigation */}
-                <div className="flex-1 overflow-y-auto py-4" suppressHydrationWarning>
-                    <nav className="space-y-1 px-3" suppressHydrationWarning>
+                <div className="flex-1 overflow-y-auto py-6" suppressHydrationWarning>
+                    <nav className="space-y-2 px-4" suppressHydrationWarning>
                         {sidebarItems.map((item) => {
                             const isActive = pathname === item.href;
                             return (
@@ -56,14 +54,15 @@ export function Sidebar() {
                                     key={item.href}
                                     href={item.href}
                                     className={cn(
-                                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                                        "flex items-center gap-4 rounded-2xl px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all duration-500 relative group",
                                         isActive
-                                            ? "bg-primary/10 text-primary shadow-[0_0_10px_rgba(99,102,241,0.1)]"
-                                            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                                            ? "text-white bg-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] border border-white/10"
+                                            : "text-white/30 hover:text-white"
                                     )}
                                     suppressHydrationWarning
                                 >
-                                    <item.icon className={cn("h-4 w-4", isActive && "text-primary")} />
+                                    {isActive && <motion.div layoutId="sidebar-active" className="absolute left-[-1px] top-3 bottom-3 w-1 bg-indigo-500 rounded-full" />}
+                                    <item.icon className={cn("h-4 w-4 transition-all duration-500 group-hover:scale-110", isActive ? "text-indigo-400" : "opacity-40")} />
                                     {item.label}
                                 </Link>
                             );
@@ -72,14 +71,20 @@ export function Sidebar() {
                 </div>
 
                 {/* Footer */}
-                <div className="border-t border-border p-4" suppressHydrationWarning>
+                <div className="p-6" suppressHydrationWarning>
+                    <div className="p-5 rounded-3xl bg-indigo-600/5 border border-indigo-500/10 mb-6">
+                        <p className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest mb-2">NEURAL_STATS</p>
+                        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                            <motion.div animate={{ width: ["0%", "85%"] }} className="h-full bg-indigo-500" />
+                        </div>
+                    </div>
                     <button
                         onClick={() => signOut()}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                        className="flex w-full items-center justify-center gap-3 rounded-2xl px-3 py-4 text-[10px] font-mono uppercase tracking-[0.2em] font-black text-white/20 hover:text-red-400 hover:bg-red-400/10 transition-all duration-300 border border-transparent hover:border-red-400/20"
                         suppressHydrationWarning
                     >
                         <LogOut className="h-4 w-4" />
-                        Sign Out
+                        TERMINATE_LINK
                     </button>
                 </div>
             </div>

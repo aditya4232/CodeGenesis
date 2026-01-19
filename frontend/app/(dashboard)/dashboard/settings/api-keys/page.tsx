@@ -32,14 +32,26 @@ export default function ApiKeysPage() {
     }, [])
 
     const fetchConfiguredProviders = async () => {
+        // First check localStorage
+        const storedKeys = JSON.parse(localStorage.getItem("codegenesis_api_keys") || "{}")
+        const localProviders = Object.keys(storedKeys).filter(k => storedKeys[k])
+
         try {
             const response = await fetch('/api/keys')
             if (response.ok) {
                 const data = await response.json()
-                setConfiguredProviders(data.providers?.map((p: any) => p.provider) || [])
+                const dbProviders = data.providers?.map((p: any) => p.provider) || []
+                // Merge local and db providers
+                const allProviders = [...new Set([...localProviders, ...dbProviders])]
+                setConfiguredProviders(allProviders)
+            } else {
+                // API failed, use localStorage only
+                setConfiguredProviders(localProviders)
             }
         } catch (error) {
             console.error('Error fetching providers:', error)
+            // Fallback to localStorage
+            setConfiguredProviders(localProviders)
         }
     }
 
@@ -51,6 +63,12 @@ export default function ApiKeysPage() {
         }
 
         setIsSaving(prev => ({ ...prev, [provider]: true }))
+
+        // Always save to localStorage first for immediate use
+        const storedKeys = JSON.parse(localStorage.getItem("codegenesis_api_keys") || "{}")
+        storedKeys[provider] = apiKey
+        localStorage.setItem("codegenesis_api_keys", JSON.stringify(storedKeys))
+
         try {
             const response = await fetch('/api/keys', {
                 method: 'POST',
@@ -64,23 +82,26 @@ export default function ApiKeysPage() {
             })
 
             if (response.ok) {
-                // Save to localStorage for immediate use in code generation
-                const storedKeys = JSON.parse(localStorage.getItem("codegenesis_api_keys") || "{}")
-                storedKeys[provider] = apiKey
-                localStorage.setItem("codegenesis_api_keys", JSON.stringify(storedKeys))
-
-                toast.success(`${provider.toUpperCase()} API key saved securely`, {
-                    description: "Your key is encrypted and stored in the database"
+                toast.success(`${provider.toUpperCase()} API key saved`, {
+                    description: "Your key is stored and ready to use"
                 })
-                setKeys(prev => ({ ...prev, [provider]: "" }))
-                fetchConfiguredProviders()
+                setConfiguredProviders(prev => [...prev.filter(p => p !== provider), provider])
             } else {
-                const error = await response.json()
-                toast.error(error.error || "Failed to save API key")
+                // API failed but localStorage succeeded
+                toast.success(`${provider.toUpperCase()} API key saved locally`, {
+                    description: "Key saved to browser storage"
+                })
+                setConfiguredProviders(prev => [...prev.filter(p => p !== provider), provider])
             }
+
+            setKeys(prev => ({ ...prev, [provider]: "" }))
         } catch (error) {
-            toast.error("Failed to save API key")
-            console.error(error)
+            // Network error but localStorage succeeded
+            toast.success(`${provider.toUpperCase()} API key saved locally`, {
+                description: "Key saved to browser storage (offline mode)"
+            })
+            setConfiguredProviders(prev => [...prev.filter(p => p !== provider), provider])
+            setKeys(prev => ({ ...prev, [provider]: "" }))
         } finally {
             setIsSaving(prev => ({ ...prev, [provider]: false }))
         }
