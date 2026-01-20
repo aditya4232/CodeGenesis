@@ -166,9 +166,12 @@ html {
 
 /* Loading animations */
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 5px rgba(99, 102, 241, 0.5);
   }
+
   50% {
     box-shadow: 0 0 20px rgba(99, 102, 241, 0.8);
   }
@@ -179,8 +182,15 @@ html {
 }
 
 @keyframes typing {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
 }
 
 .animate-typing {
@@ -622,17 +632,41 @@ html {
     max-width: 100%;
     padding: 0;
   }
-  
+
   .doc-section {
     page-break-inside: avoid;
   }
-  
+
   .doc-table {
     box-shadow: none;
   }
-  
-  .info-box, .warning-box, .success-box {
+
+  .info-box,
+  .warning-box,
+  .success-box {
     border: 1px solid #e5e7eb;
     background: white !important;
   }
+}
+
+/* ============================================
+   CLERK DEVELOPMENT BADGE HIDER
+   ============================================ */
+
+/* Targets the standard Clerk dev badge classes */
+.cl-internal-b39171,
+.cl-internal-1dauv9w,
+.cl-internal-phv766,
+.cl-dev-badge,
+[data-clerk-theme="dark"] .cl-internal-phv766 {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Fallback: Targets the footer area where the badge usually lives */
+div[data-clerk-theme="dark"] footer+div,
+div.cl-rootBox+div {
+  display: none !important;
 }
