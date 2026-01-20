@@ -79,10 +79,10 @@ export default function Dashboard() {
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { label: 'Neural Projects', value: projects.length, icon: Box, color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
-                    { label: 'Code Projection', value: '12.4k', icon: Code2, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-                    { label: 'Sync Velocity', value: '+3.2x', icon: Zap, color: 'text-amber-400', bg: 'bg-amber-400/10' },
-                    { label: 'Active Neurals', value: '99.9%', icon: Activity, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+                    { label: 'Total Projects', value: projects.length.toString(), icon: Box, color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
+                    { label: 'Est. Files', value: (projects.length * 4).toString(), icon: Code2, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+                    { label: 'Last Sync', value: projects.length > 0 ? new Date(projects[0].updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--', icon: Zap, color: 'text-amber-400', bg: 'bg-amber-400/10' },
+                    { label: 'System Status', value: 'Optimal', icon: Activity, color: 'text-purple-400', bg: 'bg-purple-400/10' },
                 ].map((stat, i) => (
                     <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
                         <Card className="bg-[#0c0c0e]/50 backdrop-blur-xl border-white/5 hover:border-white/20 transition-all duration-500 overflow-hidden group relative">
@@ -90,7 +90,9 @@ export default function Dashboard() {
                             <CardContent className="p-6 flex items-center justify-between relative z-10">
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-mono uppercase tracking-widest text-white/30">{stat.label}</p>
-                                    <h2 className="text-4xl font-extrabold text-white tracking-tighter group-hover:scale-105 transition-transform origin-left">{stat.value}</h2>
+                                    <h2 className="text-4xl font-extrabold tracking-tighter group-hover:scale-105 transition-transform origin-left bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-white to-emerald-400">
+                                        {stat.value}
+                                    </h2>
                                 </div>
                                 <div className={`p-4 rounded-2xl ${stat.bg} border border-white/5 shadow-2xl transition-all group-hover:rotate-12`}>
                                     <stat.icon className={`h-6 w-6 ${stat.color}`} />

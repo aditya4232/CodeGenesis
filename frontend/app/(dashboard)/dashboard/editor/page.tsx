@@ -60,6 +60,7 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
         });
 
         // Headings (###)
+        text = text.replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold text-white mt-8 mb-4 tracking-tight border-b border-white/10 pb-4">$1</h1>');
         text = text.replace(/^### (.*$)/gm, '<h3 class="text-sm font-bold text-white mt-4 mb-2">$1</h3>');
         text = text.replace(/^## (.*$)/gm, '<h2 class="text-base font-extrabold text-white mt-6 mb-3 border-b border-white/5 pb-1">$1</h2>');
 
@@ -101,7 +102,7 @@ const MonacoDiffEditor = dynamic(() => import("@monaco-editor/react").then(mod =
 interface Message {
     role: 'user' | 'assistant';
     content: string;
-    type?: 'text' | 'plan' | 'code';
+    type?: 'text' | 'plan' | 'code' | 'doc';
     planData?: PlanData;
     filesChanged?: string[];
     timestamp?: string;
@@ -304,17 +305,20 @@ export default function EditorPage() {
             let filesChanged: string[] = []
 
             // Attempt to parse JSON - either inside markdown blocks or raw
+            // Attempt to parse JSON - Robust Strategy
             let jsonData: any = null
             const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/)
 
-            try {
-                if (jsonMatch) {
-                    jsonData = JSON.parse(jsonMatch[1])
-                } else if (fullResponse.trim().startsWith('{') && fullResponse.trim().endsWith('}')) {
-                    jsonData = JSON.parse(fullResponse.trim())
+            if (jsonMatch) {
+                try { jsonData = JSON.parse(jsonMatch[1]) } catch { }
+            }
+
+            if (!jsonData) {
+                const firstOpen = fullResponse.indexOf('{');
+                const lastClose = fullResponse.lastIndexOf('}');
+                if (firstOpen !== -1 && lastClose > firstOpen) {
+                    try { jsonData = JSON.parse(fullResponse.substring(firstOpen, lastClose + 1)) } catch { }
                 }
-            } catch (e) {
-                console.error("JSON extraction failed", e)
             }
 
             if (jsonData) {
@@ -330,6 +334,13 @@ export default function EditorPage() {
                             }
                         }
                         setTerminalOutput(prev => [...prev, `$ Plan proposed. Waiting for user approval.`])
+                    }
+                    else if (jsonData.type === 'doc') {
+                        finalMessage = {
+                            role: 'assistant',
+                            content: jsonData.content || "Generating document...",
+                            type: 'doc'
+                        }
                     }
                     else if (jsonData.type === 'chat') {
                         finalMessage = {
@@ -553,7 +564,26 @@ export default function EditorPage() {
                                                         : 'bg-[#1a1a1c] border border-white/5 text-gray-200 rounded-tl-sm'
                                                         }`}>
                                                         {/* Text Content */}
-                                                        <MarkdownRenderer content={m.content} />
+                                                        {/* Doc UI */}
+                                                        {m.type === 'doc' ? (
+                                                            <div className="bg-[#0c0c0e] p-8 rounded-2xl border border-white/10 shadow-2xl my-2 max-w-3xl w-full mx-auto relative overflow-hidden group">
+                                                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                                    <FileEdit className="h-24 w-24 text-indigo-500" />
+                                                                </div>
+                                                                <div className="flex items-center gap-3 mb-8 pb-4 border-b border-white/5 relative z-10">
+                                                                    <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                                                                        <FileEdit className="h-5 w-5" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-xs font-mono uppercase tracking-widest text-indigo-400">Generated Report</div>
+                                                                        <div className="text-sm text-white/60">Neural Analysis v2.7</div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-gray-300 prose-li:text-gray-300 prose-strong:text-indigo-300 relative z-10" dangerouslySetInnerHTML={{ __html: m.content }} />
+                                                            </div>
+                                                        ) : (
+                                                            <MarkdownRenderer content={m.content} />
+                                                        )}
 
                                                         {/* Plan UI */}
                                                         {m.type === 'plan' && m.planData && (
