@@ -39,12 +39,14 @@ export default function Dashboard() {
         if (isLoaded && user) loadProjects();
     }, [user, isLoaded]);
 
-    const getGreeting = () => {
+    const [greeting, setGreeting] = useState('');
+
+    useEffect(() => {
         const hour = new Date().getHours();
-        if (hour < 12) return 'Good Morning';
-        if (hour < 18) return 'Good Afternoon';
-        return 'Good Evening';
-    };
+        if (hour < 12) setGreeting('Good Morning');
+        else if (hour < 18) setGreeting('Good Afternoon');
+        else setGreeting('Good Evening');
+    }, []);
 
     return (
         <div className="space-y-8 p-1">
@@ -55,7 +57,7 @@ export default function Dashboard() {
                         initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                         className="text-5xl font-extrabold tracking-tighter text-white"
                     >
-                        {getGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-white to-emerald-400">{user?.displayName?.split(' ')[0] || 'Creator'}</span>
+                        {greeting}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-white to-emerald-400">{user?.displayName?.split(' ')[0] || 'Creator'}</span>
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
