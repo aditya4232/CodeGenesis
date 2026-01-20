@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { DevelopmentPopup } from "@/components/DevelopmentPopup";
-import { ClerkProvider } from '@clerk/nextjs';
+import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { CookiesConsent } from "@/components/CookiesConsent";
 import { Analytics } from "@vercel/analytics/react";
@@ -32,29 +32,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        variables: {
-          colorPrimary: '#6366f1',
-          colorBackground: '#09090b',
-          colorText: '#fafafa',
-        },
-        elements: {
-          formButtonPrimary: 'bg-primary hover:bg-primary/90',
-          card: 'bg-black border border-white/10',
-        },
-      }}
-    >
-      <html lang="en" className="dark" suppressHydrationWarning data-scroll-behavior="smooth">
-        <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`} suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning data-scroll-behavior="smooth">
+      <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`} suppressHydrationWarning>
+        <AuthProvider>
           {children}
           <DevelopmentPopup />
           <ToastProvider />
           <CookiesConsent />
           <Analytics />
           <SpeedInsights />
-        </body>
-      </html>
-    </ClerkProvider>
+        </AuthProvider>
+      </body>
+    </html>
   );
 }
