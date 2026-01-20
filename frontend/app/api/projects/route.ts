@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
                 slug,
                 framework: framework || 'vanilla',
                 description: description || '',
-                status: 'active',
+                status: 'planning',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
