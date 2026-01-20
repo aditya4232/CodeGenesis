@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 export default function ProjectsPage() {
-    const { user, loading: isLoaded } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -40,8 +40,8 @@ export default function ProjectsPage() {
                 setIsLoading(false);
             }
         };
-        if (isLoaded && user) loadProjects();
-    }, [user, isLoaded]);
+        if (!loading && user) loadProjects();
+    }, [user, loading]);
 
     // Filtering Logic
     const filteredProjects = projects.filter(p => {
