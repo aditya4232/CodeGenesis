@@ -1,0 +1,83 @@
+﻿
+> frontend@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.3 (Turbopack)
+- Environments: .env.local
+
+node.exe : ÔÜá The 
+"middleware" file 
+convention is deprecated. 
+Please use "proxy" instead. 
+Learn more: https://nextjs.o
+rg/docs/messages/middleware-
+to-proxy
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (ÔÜá T  
+  he "middle...leware-to-   
+ proxy:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 30.2s
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+ÔÜá Using edge runtime on a 
+page currently disables 
+static generation for that 
+page
+  Generating static pages using 11 workers (0/25) ...
+  Generating static pages using 11 workers (6/25) 
+  Generating static pages using 11 workers (12/25) 
+  Generating static pages using 11 workers (18/25) 
+Ô£ô Generating static pages using 11 workers (25/25) in 2.1s
+  Finalizing page optimization ...
+
+Route (app)
+Ôöî Ôùï /
+Ôö£ Ôùï /_not-found
+Ôö£ ãÆ /api/agent/cleanup
+Ôö£ ãÆ /api/agent/conversations
+Ôö£ ãÆ /api/agent/conversations/[id]
+Ôö£ ãÆ /api/agent/conversations/[id]/messages
+Ôö£ ãÆ /api/generate
+Ôö£ ãÆ /api/keys
+Ôö£ ãÆ /api/profile
+Ôö£ ãÆ /api/projects
+Ôö£ ãÆ /api/projects/[id]
+Ôö£ ãÆ /api/projects/[id]/data
+Ôö£ ãÆ /api/projects/[id]/generations
+Ôö£ ãÆ /api/test-db
+Ôö£ Ôùï /dashboard
+Ôö£ Ôùï /dashboard/agent
+Ôö£ Ôùï /dashboard/editor
+Ôö£ Ôùï /dashboard/projects
+Ôö£ Ôùï /dashboard/settings
+Ôö£ Ôùï /dashboard/settings/api-keys
+Ôö£ Ôùï /dashboard/settings/data
+Ôö£ Ôùï /docs
+Ôö£ Ôùï /forgot-password
+Ôö£ Ôùï /how-it-works
+Ôö£ Ôùï /icon.png
+Ôö£ Ôùï /pricing
+Ôö£ Ôùï /privacy
+Ôö£ Ôùï /sign-in
+Ôö£ Ôùï /sign-up
+Ôöö Ôùï /terms
+
+
+ãÆ Proxy (Middleware)
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+

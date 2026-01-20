@@ -1,4 +1,5 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
 import {
     getAuth,
     Auth,
@@ -26,10 +27,23 @@ const firebaseConfig = {
 // Initialize Firebase (singleton pattern)
 let app: FirebaseApp;
 let auth: Auth;
+let analytics: Analytics | undefined;
 
 if (typeof window !== 'undefined') {
+    // Initialize App
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
+    // Initialize Auth
     auth = getAuth(app);
+
+    // Initialize Analytics (conditionally)
+    isSupported().then(supported => {
+        if (supported) {
+            analytics = getAnalytics(app);
+        }
+    }).catch(err => {
+        console.warn('Firebase Analytics not supported in this environment');
+    });
 }
 
 // Google Provider
@@ -104,5 +118,5 @@ export const firebaseAuth = {
     }
 };
 
-export { auth };
+export { auth, app, analytics };
 export type { User };
