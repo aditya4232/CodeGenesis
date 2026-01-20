@@ -21,7 +21,7 @@ const NeuralFlow = () => (
 );
 
 export default function Dashboard() {
-    const { user, loading: isLoaded } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -36,8 +36,8 @@ export default function Dashboard() {
             }
         };
 
-        if (isLoaded && user) loadProjects();
-    }, [user, isLoaded]);
+        if (!loading && user) loadProjects();
+    }, [user, loading]);
 
     const [greeting, setGreeting] = useState('');
 
