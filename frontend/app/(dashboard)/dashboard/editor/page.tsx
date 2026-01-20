@@ -579,7 +579,20 @@ export default function EditorPage() {
                                                                         <div className="text-sm text-white/60">Neural Analysis v2.7</div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-gray-300 prose-li:text-gray-300 prose-strong:text-indigo-300 relative z-10" dangerouslySetInnerHTML={{ __html: m.content }} />
+                                                                <div className="report-content relative z-10">
+                                                                    <style>{`
+                                                                        .report-content h1 { font-size: 2.5rem; font-weight: 800; color: white; margin-bottom: 1.5rem; line-height: 1.2; letter-spacing: -0.02em; }
+                                                                        .report-content h2 { font-size: 1.75rem; font-weight: 700; color: #e5e7eb; margin-top: 2.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; }
+                                                                        .report-content h3 { font-size: 1.25rem; font-weight: 600; color: #a5b4fc; margin-top: 2rem; margin-bottom: 0.75rem; }
+                                                                        .report-content p { color: #d1d5db; line-height: 1.8; margin-bottom: 1.25rem; font-size: 1.05rem; }
+                                                                        .report-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; color: #d1d5db; }
+                                                                        .report-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.5rem; color: #d1d5db; }
+                                                                        .report-content li { margin-bottom: 0.5rem; }
+                                                                        .report-content strong { color: white; font-weight: 700; }
+                                                                        .report-content blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; margin-left: 0; font-style: italic; color: #9ca3af; }
+                                                                    `}</style>
+                                                                    <div dangerouslySetInnerHTML={{ __html: m.content }} />
+                                                                </div>
                                                             </div>
                                                         ) : (
                                                             <MarkdownRenderer content={m.content} />
