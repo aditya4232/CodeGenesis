@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,20 +8,20 @@ const supabase = createClient(
 );
 
 // GET /api/projects/[id] - Get single project
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const { id: projectId } = await params;
-        const { data: project, error } = await supabase
+        const { data: project, error: dbError } = await supabase
             .from('projects')
             .select('*')
             .eq('id', projectId)
             .eq('user_id', userId)
             .single();
 
-        if (error || !project) {
+        if (dbError || !project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
@@ -32,10 +32,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // PUT /api/projects/[id] - Update project
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const { id: projectId } = await params;
         const body = await req.json();
@@ -49,7 +49,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         if (repository_url !== undefined) updates.repository_url = repository_url;
         if (deployment_url !== undefined) updates.deployment_url = deployment_url;
 
-        const { data: project, error } = await supabase
+        const { data: project, error: dbError } = await supabase
             .from('projects')
             .update(updates)
             .eq('id', projectId)
@@ -57,7 +57,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             .select()
             .single();
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
         return NextResponse.json(project);
     } catch (error: any) {
@@ -66,10 +66,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // DELETE /api/projects/[id] - Delete project
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const { id: projectId } = await params;
         // Verify ownership
@@ -85,7 +85,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         }
 
         // Delete related data first
-// Get chats to delete messages
+        // Get chats to delete messages
         const { data: chats } = await supabase
             .from('project_chats')
             .select('id')
@@ -97,16 +97,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             }
         }
 
-await supabase.from('project_chats').delete().eq('project_id', projectId);
+        await supabase.from('project_chats').delete().eq('project_id', projectId);
         await supabase.from('project_files').delete().eq('project_id', projectId);
 
         // Delete project
-        const { error } = await supabase
+        const { error: deleteError } = await supabase
             .from('projects')
             .delete()
             .eq('id', projectId);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

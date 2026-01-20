@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -19,11 +19,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
+
+        if (authError) { return authError; }
 
         const { id } = await params;
 
@@ -67,11 +65,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
+
+        if (authError) { return authError; }
 
         const { id } = await params;
         const body = await request.json();
@@ -81,7 +77,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (title !== undefined) updates.title = title;
         if (is_archived !== undefined) updates.is_archived = is_archived;
 
-        const { data, error } = await supabase
+        const { data, error: dbError } = await supabase
             .from('agent_conversations')
             .update(updates)
             .eq('id', id)
@@ -89,8 +85,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             .select()
             .single();
 
-        if (error) {
-            console.error('Error updating conversation:', error);
+        if (dbError) {
+            console.error('Error updating conversation:', dbError);
             return NextResponse.json({ error: 'Failed to update conversation' }, { status: 500 });
         }
 
@@ -107,23 +103,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
+
+        if (authError) { return authError; }
 
         const { id } = await params;
 
         // Delete conversation (messages will cascade delete)
-        const { error } = await supabase
+        const { error: dbError } = await supabase
             .from('agent_conversations')
             .delete()
             .eq('id', id)
             .eq('user_id', userId);
 
-        if (error) {
-            console.error('Error deleting conversation:', error);
+        if (dbError) {
+            console.error('Error deleting conversation:', dbError);
             return NextResponse.json({ error: 'Failed to delete conversation' }, { status: 500 });
         }
 

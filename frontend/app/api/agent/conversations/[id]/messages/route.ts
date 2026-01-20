@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -19,11 +19,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
+
+        if (authError) { return authError; }
 
         const { id } = await params;
 
@@ -40,14 +38,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
 
         // Get messages
-        const { data: messages, error } = await supabase
+        const { data: messages, error: dbError } = await supabase
             .from('agent_messages')
             .select('*')
             .eq('conversation_id', id)
             .order('created_at', { ascending: true });
 
-        if (error) {
-            console.error('Error fetching messages:', error);
+        if (dbError) {
+            console.error('Error fetching messages:', dbError);
             return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
         }
 
@@ -64,11 +62,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
+
+        if (authError) { return authError; }
 
         const { id } = await params;
         const body = await request.json();
@@ -87,7 +83,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         // Insert message
-        const { data, error } = await supabase
+        const { data, error: dbError } = await supabase
             .from('agent_messages')
             .insert([{
                 conversation_id: id,
@@ -100,8 +96,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             .select()
             .single();
 
-        if (error) {
-            console.error('Error adding message:', error);
+        if (dbError) {
+            console.error('Error adding message:', dbError);
             return NextResponse.json({ error: 'Failed to add message' }, { status: 500 });
         }
 

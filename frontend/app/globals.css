@@ -648,25 +648,3 @@ html {
     background: white !important;
   }
 }
-
-/* ============================================
-   CLERK DEVELOPMENT BADGE HIDER
-   ============================================ */
-
-/* Targets the standard Clerk dev badge classes */
-.cl-internal-b39171,
-.cl-internal-1dauv9w,
-.cl-internal-phv766,
-.cl-dev-badge,
-[data-clerk-theme="dark"] .cl-internal-phv766 {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
-
-/* Fallback: Targets the footer area where the badge usually lives */
-div[data-clerk-theme="dark"] footer+div,
-div.cl-rootBox+div {
-  display: none !important;
-}

@@ -1,16 +1,15 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { supabaseAdmin } from '@/lib/supabase-server';
 
 export async function POST(
-    req: Request,
+    req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { userId } = await auth();
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(req);
+
+        if (authError) { return authError; }
 
         const { id } = await params;
         const body = await req.json();

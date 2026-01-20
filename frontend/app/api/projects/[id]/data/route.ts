@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,10 +8,10 @@ const supabase = createClient(
 );
 
 // GET - Load project with all data
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const { id: projectId } = await params;
 
@@ -69,10 +69,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // PUT - Save project data
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const { id: projectId } = await params;
         const body = await req.json();
@@ -194,10 +194,10 @@ const { userId } = await auth();
 }
 
 // DELETE - Delete project
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const { id: projectId } = await params;
 

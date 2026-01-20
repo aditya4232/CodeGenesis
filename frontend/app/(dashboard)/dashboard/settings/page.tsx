@@ -11,7 +11,7 @@ import {
     Save, Eye, EyeOff, Check, AlertCircle, Laptop, Moon, Sun, Terminal
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ const PROVIDERS = {
 };
 
 export default function SettingsPage() {
-    const { user, isLoaded } = useUser();
+    const { user, loading } = useAuth();
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
     const [showKey, setShowKey] = useState<Record<string, boolean>>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -72,10 +72,16 @@ export default function SettingsPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/5">
-                                <img src={user?.imageUrl} alt="Profile" className="h-16 w-16 rounded-full border-2 border-indigo-500/20" />
+                                {user?.photoURL ? (
+                                    <img src={user.photoURL} alt="Profile" className="h-16 w-16 rounded-full border-2 border-indigo-500/20" />
+                                ) : (
+                                    <div className="h-16 w-16 rounded-full border-2 border-indigo-500/20 bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white text-xl font-bold">
+                                        {(user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase()}
+                                    </div>
+                                )}
                                 <div>
-                                    <h3 className="font-semibold text-white text-lg">{user?.fullName}</h3>
-                                    <p className="text-sm text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</p>
+                                    <h3 className="font-semibold text-white text-lg">{user?.displayName || 'User'}</h3>
+                                    <p className="text-sm text-muted-foreground">{user?.email}</p>
                                     <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 mt-2">Free Plan</Badge>
                                 </div>
                             </div>
@@ -126,8 +132,8 @@ export default function SettingsPage() {
                                         key={key}
                                         whileHover={{ y: -5 }}
                                         className={`group relative p-6 rounded-[2rem] border transition-all duration-500 ${apiKeys[key]
-                                                ? 'bg-indigo-500/5 border-indigo-500/20'
-                                                : 'bg-white/[0.02] border-white/5 hover:border-white/10'
+                                            ? 'bg-indigo-500/5 border-indigo-500/20'
+                                            : 'bg-white/[0.02] border-white/5 hover:border-white/10'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between mb-6">

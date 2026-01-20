@@ -13,7 +13,7 @@ import {
     LogOut,
     Bot
 } from 'lucide-react';
-import { useClerk } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 
 const sidebarItems = [
@@ -26,7 +26,7 @@ const sidebarItems = [
 
 export function Sidebar() {
     const pathname = usePathname();
-    const { signOut } = useClerk();
+    const { signOut } = useAuth();
 
     return (
         <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-white/5 bg-[#050507]/60 backdrop-blur-3xl transition-all duration-500 ease-in-out" suppressHydrationWarning>

@@ -9,7 +9,7 @@ import {
     Trash2, Edit, ExternalLink, Code2, Globe, Laptop
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext';
 import { getUserProjects, type Project } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 export default function ProjectsPage() {
-    const { user, isLoaded } = useUser();
+    const { user, loading: isLoaded } = useAuth();
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -34,8 +34,8 @@ export default function ProjectsPage() {
 
     useEffect(() => {
         const loadProjects = async () => {
-            if (user?.id) {
-                const userProjects = await getUserProjects(user.id);
+            if (user?.uid) {
+                const userProjects = await getUserProjects(user.uid);
                 setProjects(userProjects);
                 setIsLoading(false);
             }
@@ -110,8 +110,8 @@ export default function ProjectsPage() {
                             key={filter}
                             onClick={() => setActiveFilter(filter)}
                             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all capitalize ${activeFilter === filter
-                                    ? 'bg-indigo-500 text-white shadow-sm'
-                                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                                ? 'bg-indigo-500 text-white shadow-sm'
+                                : 'text-muted-foreground hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             {filter === 'vanilla' ? 'HTML/CSS' : filter}

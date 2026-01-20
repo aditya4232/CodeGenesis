@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -13,20 +13,18 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
  */
 export async function GET(request: NextRequest) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
 
-        const { data, error } = await supabase
+        if (authError) { return authError; }
+
+        const { data, error: dbError } = await supabase
             .from('agent_conversations')
             .select('*')
             .eq('user_id', userId)
             .order('last_message_at', { ascending: false });
 
-        if (error) {
-            console.error('Error fetching conversations:', error);
+        if (dbError) {
+            console.error('Error fetching conversations:', dbError);
             return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 });
         }
 
@@ -43,16 +41,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
-        const { userId } = await auth();
-        
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { userId, error: authError } = await requireAuth(request);
+
+        if (authError) { return authError; }
 
         const body = await request.json();
         const { title = 'New Conversation' } = body;
 
-        const { data, error } = await supabase
+        const { data, error: dbError } = await supabase
             .from('agent_conversations')
             .insert([{
                 user_id: userId,
@@ -61,8 +57,8 @@ export async function POST(request: NextRequest) {
             .select()
             .single();
 
-        if (error) {
-            console.error('Error creating conversation:', error);
+        if (dbError) {
+            console.error('Error creating conversation:', dbError);
             return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
         }
 

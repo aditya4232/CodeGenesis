@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import {
     storeEncryptedApiKey,
     getDecryptedApiKey,
@@ -12,13 +12,11 @@ import {
 /**
  * GET /api/keys - List all configured providers
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
-        const { userId } = await auth();
+        const { userId, error } = await requireAuth(req);
 
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        if (error) { return error; }
 
         const result = await listConfiguredProviders(userId);
 
@@ -37,13 +35,11 @@ export async function GET() {
  * POST /api/keys - Store an encrypted API key
  * Body: { provider, apiKey, keyName?, modelId?, isCustomModel? }
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
-        const { userId } = await auth();
+        const { userId, error } = await requireAuth(req);
 
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        if (error) { return error; }
 
         const body = await req.json();
         const { provider, apiKey, keyName, modelId, isCustomModel } = body;
@@ -87,13 +83,11 @@ export async function POST(req: Request) {
 /**
  * DELETE /api/keys?provider=openai - Delete an API key
  */
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
     try {
-        const { userId } = await auth();
+        const { userId, error } = await requireAuth(req);
 
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        if (error) { return error; }
 
         const { searchParams } = new URL(req.url);
         const provider = searchParams.get('provider');

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, ArrowRight, Clock, Code2, Sparkles, TrendingUp, Zap, CheckCircle2, Layout, Github, Terminal, Search, Activity, Box, Settings, Bot } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext';
 import { getUserProjects, type Project } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -21,7 +21,7 @@ const NeuralFlow = () => (
 );
 
 export default function Dashboard() {
-    const { user, isLoaded } = useUser();
+    const { user, loading: isLoaded } = useAuth();
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -29,8 +29,8 @@ export default function Dashboard() {
 
     useEffect(() => {
         const loadProjects = async () => {
-            if (user?.id) {
-                const userProjects = await getUserProjects(user.id);
+            if (user?.uid) {
+                const userProjects = await getUserProjects(user.uid);
                 setProjects(userProjects);
                 setIsLoading(false);
             }
@@ -55,7 +55,7 @@ export default function Dashboard() {
                         initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                         className="text-5xl font-extrabold tracking-tighter text-white"
                     >
-                        {getGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-white to-emerald-400">{user?.firstName || 'Creator'}</span>
+                        {getGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-white to-emerald-400">{user?.displayName?.split(' ')[0] || 'Creator'}</span>
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}

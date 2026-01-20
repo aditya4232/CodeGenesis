@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/contexts/AuthContext"
 import { ConversationHistory } from "@/components/agent/ConversationHistory"
 import { ArtifactViewer } from "@/components/agent/ArtifactViewer"
 import {
@@ -214,12 +214,12 @@ interface Message {
 }
 
 export default function AgentPage() {
-    const { user } = useUser()
+    const { user, loading: isLoaded } = useAuth()
     const [conversations, setConversations] = useState<AgentConversation[]>([])
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
     const [showHistory, setShowHistory] = useState(true)
     const [isMounted, setIsMounted] = useState(false)
-    
+
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
@@ -246,17 +246,17 @@ export default function AgentPage() {
 
     // Load conversations from database
     useEffect(() => {
-        if (user?.id) {
+        if (user?.uid) {
             loadConversations()
         }
     }, [user])
 
     const loadConversations = async () => {
-        if (!user?.id) return
+        if (!user?.uid) return
         try {
-            const convos = await getUserConversations(user.id)
+            const convos = await getUserConversations(user.uid)
             setConversations(convos)
-            
+
             // Auto-select most recent conversation
             if (convos.length > 0 && !activeConversationId) {
                 await loadConversation(convos[0].id)
@@ -271,7 +271,7 @@ export default function AgentPage() {
             const conversation = await getConversation(conversationId)
             if (conversation) {
                 setActiveConversationId(conversationId)
-                
+
                 // Convert database messages to component format
                 const loadedMessages: Message[] = conversation.messages.map((msg: AgentMessage) => ({
                     id: msg.id,
@@ -284,7 +284,7 @@ export default function AgentPage() {
                     spreadsheetData: msg.artifact_data?.spreadsheetData,
                     codeData: msg.artifact_data?.codeData,
                 }))
-                
+
                 setMessages(loadedMessages.length > 0 ? loadedMessages : [{
                     id: '1',
                     role: 'assistant',
@@ -299,11 +299,11 @@ export default function AgentPage() {
     }
 
     const handleNewConversation = async () => {
-        if (!user?.id) {
+        if (!user?.uid) {
             toast.error('Please sign in to create conversations')
             return
         }
-        
+
         setActiveConversationId(null)
         setMessages([{
             id: '1',
@@ -373,10 +373,10 @@ export default function AgentPage() {
 
         // Create conversation if needed
         let conversationId = activeConversationId
-        if (!conversationId && user?.id) {
+        if (!conversationId && user?.uid) {
             try {
                 const title = generateTitle(val)
-                const newConvo = await createConversation(user.id, title)
+                const newConvo = await createConversation(user.uid, title)
                 if (newConvo) {
                     conversationId = newConvo.id
                     setActiveConversationId(conversationId)
@@ -388,10 +388,10 @@ export default function AgentPage() {
         }
 
         // Save user message to database
-        if (conversationId && user?.id) {
+        if (conversationId && user?.uid) {
             try {
                 await addMessage(conversationId, {
-                    user_id: user.id,
+                    user_id: user.uid,
                     role: 'user',
                     content: val,
                     message_type: 'text',
@@ -488,10 +488,10 @@ export default function AgentPage() {
             setMessages(prev => [...prev, finalMessage]);
 
             // Save assistant message to database
-            if (conversationId && user?.id) {
+            if (conversationId && user?.uid) {
                 try {
                     await addMessage(conversationId, {
-                        user_id: user.id,
+                        user_id: user.uid,
                         role: 'assistant',
                         content: finalMessage.content,
                         message_type: finalMessage.type || 'text',
@@ -543,10 +543,10 @@ export default function AgentPage() {
                         {activeArtifact ? 'ACTION MODE' : 'FOCUS MODE'}
                     </Badge>
                     {user && (
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => setShowHistory(!showHistory)} 
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowHistory(!showHistory)}
                             className="text-white/20 hover:text-indigo-400"
                             title={showHistory ? "Hide History" : "Show History"}
                         >
@@ -568,7 +568,7 @@ export default function AgentPage() {
                 {/* Conversation History Sidebar */}
                 {showHistory && user && (
                     <ConversationHistory
-                        userId={user.id}
+                        userId={user.uid}
                         activeConversationId={activeConversationId}
                         onSelectConversation={handleSelectConversation}
                         onNewConversation={handleNewConversation}

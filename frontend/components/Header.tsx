@@ -3,14 +3,14 @@
 import { Bell, Search, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { UserButton, useUser, ClerkLoaded, SignedIn } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext';
 import ClientUserButton from '@/components/ClientUserButton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useState } from 'react';
 
 export function Header() {
-    const { user } = useUser();
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState([
         { id: 1, title: 'Welcome to Beta v0.45', message: 'Thanks for joining our early access program!', time: 'Just now', read: false },
         { id: 2, title: 'New Feature', message: 'Try the new Live Editor with split view.', time: '2 hours ago', read: false },
@@ -38,14 +38,12 @@ export function Header() {
                 </div>
             </div>
             <div className="flex items-center gap-4" suppressHydrationWarning>
-                <ClerkLoaded>
-                    <SignedIn>
-                        <div className="hidden md:flex flex-col items-end">
-                            <span className="text-sm font-medium">{user?.fullName || user?.firstName}</span>
-                            <span className="text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</span>
-                        </div>
-                    </SignedIn>
-                </ClerkLoaded>
+                {user && (
+                    <div className="hidden md:flex flex-col items-end">
+                        <span className="text-sm font-medium">{user.displayName || user.email?.split('@')[0]}</span>
+                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </div>
+                )}
 
                 <Popover>
                     <PopoverTrigger asChild>

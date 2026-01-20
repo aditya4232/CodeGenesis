@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,18 +8,18 @@ const supabase = createClient(
 );
 
 // GET /api/projects - List all projects
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
-        const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
-        const { data: projects, error } = await supabase
+        const { data: projects, error: dbError } = await supabase
             .from('projects')
             .select('*')
             .eq('user_id', userId)
             .order('updated_at', { ascending: false });
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
         return NextResponse.json(projects || []);
     } catch (error: any) {
@@ -29,10 +29,10 @@ export async function GET() {
 }
 
 // POST /api/projects - Create new project
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
-        const { userId } = await auth();
-        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { userId, error } = await requireAuth(req);
+        if (error) return error;
 
         const body = await req.json();
         const { name, framework, description } = body;
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         // Generate unique project slug
         const slug = `${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
-        const { data: project, error } = await supabase
+        const { data: project, error: dbError } = await supabase
             .from('projects')
             .insert({
                 user_id: userId,
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
             .select()
             .single();
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
         // Create default files based on framework
         const defaultFiles = getDefaultFiles(framework, name);
