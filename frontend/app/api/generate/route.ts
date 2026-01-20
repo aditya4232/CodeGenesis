@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase for logging (optional)
 const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 export const runtime = 'edge'; // Use Edge Runtime for streaming
@@ -23,29 +23,101 @@ Your demeanor is **concise, architectural, and decisive**. You speak in "ship-it
     -   Be proactive. If a user asks for "landing page", assume standard sections (Hero, Features, Pricing) and ASK about specifics.
     -   **Lovable UI**: When writing CSS, aim for "Awwwards" quality. Glassmorphism, gradients, smooth animations.
 
-**OUTPUT BEHAVIOR:**
--   **Brief**: "Initializing project structure..." or "Updating components...".
--   **No Fluff**: Do not say "I hope this helps". Say "Ready to deploy."
+**CRITICAL OUTPUT RULES:**
+-   **ALL** responses must be wrapped in a single JSON object.
+-   **DO NOT** write any text outside the JSON block.
+-   Format: \`\`\`json { ... } \`\`\`
+
+**RESPONSE STRUCTURES (STRICTLY FOLLOW THESE):**
+
+**[Type: Chat]** - Use for general conversation.
+\`\`\`json
+{
+  "type": "chat",
+  "content": "Hello! I am CodeGenesis AI. How can I assist your architectural vision today?",
+  "suggested_questions": ["Build a dashboard", "Explain how you work", "Create a new project"]
+}
+\`\`\`
+
+**[Type: Question]** - REQUIRED for Phase 1 (Analysis) to ask MCQs.
+\`\`\`json
+{
+  "type": "question",
+  "content": "Which auth provider fits your needs?",
+  "options": ["Firebase", "Supabase", "Clerk"],
+  "suggested_questions": ["Explain the difference", "Choose for me"]
+}
+\`\`\`
+
+**[Type: Plan]** - REQUIRED for Phase 2.
+\`\`\`json
+{
+  "type": "plan",
+  "thought": "I will build the auth layer first.",
+  "steps": [
+    { "id": "1", "title": "Setup Auth", "description": "Install Firebase SDK and config." },
+    { "id": "2", "title": "Login Component", "description": "Create reusable login form." }
+  ],
+  "suggested_questions": ["Proceed with this plan", "Add more details", "Change to Supabase"]
+}
+\`\`\`
+
+**[Type: Code]** - REQUIRED for Phase 3.
+\`\`\`json
+{
+  "type": "code",
+  "thought": "Generating the hero section component.",
+  "files": [
+    { "name": "components/Hero.tsx", "content": "..." }
+  ],
+  "suggested_questions": ["What's next?", "Explain this code", "Add animations"]
+}
+\`\`\`
+
+**[Type: Doc]** - For formal documentation.
+\`\`\`json
+{
+  "type": "doc",
+  "title": "Project Specs",
+  "content": "<h1>Specs</h1>...",
+  "suggested_questions": ["Refine the specs", "Generate code from this"]
+}
+\`\`\`
+
+**[Type: PPT]** - For presentations.
+\`\`\`json
+{
+  "type": "ppt",
+  "content": "Presentation content summary...",
+  "suggested_questions": ["View slides", "Add a slide about pricing"]
+}
+\`\`\`
+
+**INSTRUCTION:**
+Based on the user message, decide the best projection mode (Chat, Question, Doc, Plan, or Code).
+**ALWAYS** include `suggested_questions` (array of 2-3 short strings) to guide the user's next step.
+**ALWAYS** return valid JSON wrapped in a code block.
+Introduce yourself as CodeGenesis AI (Neural Core v2.7).
 `;
 
 export async function POST(req: Request) {
-    try {
-        const { messages, model, provider, apiKey, files } = await req.json();
+  try {
+    const { messages, model, provider, apiKey, files } = await req.json();
 
-        if (!apiKey) {
-            return NextResponse.json({ error: 'API Key missing' }, { status: 401 });
-        }
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API Key missing' }, { status: 401 });
+    }
 
-        // Construct the full prompt context
-        const conversationHistory = messages.map((m: any) =>
-            `${m.role.toUpperCase()}: ${m.content}`
-        ).join('\n');
+    // Construct the full prompt context
+    const conversationHistory = messages.map((m: any) =>
+      `${m.role.toUpperCase()}: ${m.content}`
+    ).join('\n');
 
-        const fileContext = Object.entries(files || {}).map(([name, content]) =>
-            `--- ${name} ---\n${content}\n---`
-        ).join('\n');
+    const fileContext = Object.entries(files || {}).map(([name, content]) =>
+      `--- ${name} ---\n${content}\n---`
+    ).join('\n');
 
-        const distinctPrompt = `
+    const distinctPrompt = `
 ${SYSTEM_PROMPT}
 
 **EXISTING FILES:**
@@ -128,98 +200,98 @@ If the request is vague, stay in "Chat" mode.
 Introduce yourself as CodeGenesis AI (Neural Core v2.7).
 `;
 
-        // Call the appropriate provider
-        let responseStream;
+    // Call the appropriate provider
+    let responseStream;
 
-        if (provider === 'groq') {
-            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    messages: [
-                        { role: "system", content: SYSTEM_PROMPT },
-                        { role: "user", content: distinctPrompt }
-                    ],
-                    model: model || 'llama-3.3-70b-versatile',
-                    temperature: 0.7,
-                    max_tokens: 8000,
-                    stream: true
-                })
-            });
-            responseStream = res.body;
-        } else if (provider === 'openrouter') {
-            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://codegenesis.app',
-                },
-                body: JSON.stringify({
-                    messages: [
-                        { role: "system", content: SYSTEM_PROMPT },
-                        { role: "user", content: distinctPrompt }
-                    ],
-                    model: model || 'google/gemini-2.0-flash-exp:free',
-                    temperature: 0.7,
-                    stream: true
-                })
-            });
-            responseStream = res.body;
-        } else {
-            // Default/Fallback (OpenAI format)
-            const res = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    messages: [
-                        { role: "system", content: SYSTEM_PROMPT },
-                        { role: "user", content: distinctPrompt }
-                    ],
-                    model: model || 'gpt-4-turbo',
-                    temperature: 0.7,
-                    stream: true
-                })
-            });
-            responseStream = res.body;
-        }
-
-        if (!responseStream) throw new Error('Failed to get response stream');
-
-        const encoder = new TextEncoder();
-        const decoder = new TextDecoder();
-
-        const transformStream = new TransformStream({
-            async transform(chunk, controller) {
-                const text = decoder.decode(chunk);
-                const lines = text.split('\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-                            const content = data.choices[0]?.delta?.content || '';
-                            if (content) {
-                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
-                            }
-                        } catch (e) { }
-                    }
-                }
-            }
-        });
-
-        return new Response(responseStream.pipeThrough(transformStream), {
-            headers: { 'Content-Type': 'text/event-stream' }
-        });
-
-    } catch (error: any) {
-        console.error('Generate Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    if (provider === 'groq') {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: distinctPrompt }
+          ],
+          model: model || 'llama-3.3-70b-versatile',
+          temperature: 0.7,
+          max_tokens: 8000,
+          stream: true
+        })
+      });
+      responseStream = res.body;
+    } else if (provider === 'openrouter') {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://codegenesis.app',
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: distinctPrompt }
+          ],
+          model: model || 'google/gemini-2.0-flash-exp:free',
+          temperature: 0.7,
+          stream: true
+        })
+      });
+      responseStream = res.body;
+    } else {
+      // Default/Fallback (OpenAI format)
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: distinctPrompt }
+          ],
+          model: model || 'gpt-4-turbo',
+          temperature: 0.7,
+          stream: true
+        })
+      });
+      responseStream = res.body;
     }
+
+    if (!responseStream) throw new Error('Failed to get response stream');
+
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    const transformStream = new TransformStream({
+      async transform(chunk, controller) {
+        const text = decoder.decode(chunk);
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.slice(6));
+              const content = data.choices[0]?.delta?.content || '';
+              if (content) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+              }
+            } catch (e) { }
+          }
+        }
+      }
+    });
+
+    return new Response(responseStream.pipeThrough(transformStream), {
+      headers: { 'Content-Type': 'text/event-stream' }
+    });
+
+  } catch (error: any) {
+    console.error('Generate Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }

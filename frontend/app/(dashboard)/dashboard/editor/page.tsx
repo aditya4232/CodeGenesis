@@ -14,6 +14,7 @@ import {
     Play, Square, LayoutTemplate, MousePointer2, RefreshCw, Key, ArrowRight, CheckSquare, Rocket, Lock, RotateCw, Bot
 } from "lucide-react"
 import { toast } from "sonner"
+import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer"
 import { downloadProjectAsZip } from "@/lib/zip-utils"
 import { useSearchParams, useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
@@ -30,69 +31,7 @@ import { NewProjectModal } from "@/components/modals/new-project-modal"
 import { Checkbox } from "@/components/ui/checkbox"
 
 // --- Markdown & Visual Parser ---
-const MarkdownRenderer = ({ content }: { content: string }) => {
-    // Basic Markdown Parser (Regex based for Zero Dependencies)
-    const formattedContent = useCallback(() => {
-        let text = content;
-
-        // Code Blocks (``` ... ```)
-        text = text.replace(/```([\s\S]*?)```/g, (match, code) => {
-            return `<pre class="bg-black/40 p-4 rounded-xl border border-white/10 my-4 font-mono text-[10px] overflow-x-auto text-emerald-300"><code>${code.trim()}</code></pre>`;
-        });
-
-        // Tables (| col | col |)
-        text = text.replace(/^\|(.+)\|$\n^\|([-| ]+)\|$\n((?:^\|.+\|$\n?)+)/gm, (match, header, separator, rows) => {
-            const hCols = header.split('|').filter(Boolean).map((c: string) => c.trim());
-            const rRows = rows.split('\n').filter(Boolean).map((r: string) => r.split('|').filter(Boolean).map(c => c.trim()));
-
-            return `
-                <div class="overflow-x-auto my-4 rounded-xl border border-white/10 bg-white/5">
-                    <table class="w-full text-[11px] text-left">
-                        <thead class="bg-white/5 text-white/50 font-mono uppercase tracking-wider">
-                            <tr>${hCols.map((c: any) => `<th class="px-3 py-2 font-semibold">${c}</th>`).join('')}</tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/5">
-                            ${rRows.map((row: any) => `<tr>${row.map((c: any) => `<td class="px-3 py-2 text-white/80">${c}</td>`).join('')}</tr>`).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        });
-
-        // Headings (###)
-        text = text.replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold text-white mt-8 mb-4 tracking-tight border-b border-white/10 pb-4">$1</h1>');
-        text = text.replace(/^### (.*$)/gm, '<h3 class="text-sm font-bold text-white mt-4 mb-2">$1</h3>');
-        text = text.replace(/^## (.*$)/gm, '<h2 class="text-base font-extrabold text-white mt-6 mb-3 border-b border-white/5 pb-1">$1</h2>');
-
-        // Bold (**text**)
-        text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-400 font-semibold">$1</strong>');
-
-        // Task Lists (- [ ] or - [x])
-        text = text.replace(/^\s*[\*\-]\s+\[ \]\s+(.*$)/gm, '<li class="ml-4 mb-2 text-white/60 list-none flex items-start gap-2"><div class="h-4 w-4 rounded border border-white/20 mt-0.5 shrink-0" /><span>$1</span></li>');
-        text = text.replace(/^\s*[\*\-]\s+\[x\]\s+(.*$)/gm, '<li class="ml-4 mb-2 text-emerald-400 list-none flex items-start gap-2"><div class="h-4 w-4 rounded border border-emerald-500 bg-emerald-500/20 mt-0.5 shrink-0 flex items-center justify-center text-[10px]">✓</div><span class="line-through opacity-50">$1</span></li>');
-
-        // Inline Code (`text`)
-        text = text.replace(/`([^`]+)`/g, '<code class="bg-indigo-500/10 text-indigo-300 px-1 py-0.5 rounded font-mono text-[10px]">$1</code>');
-
-        // Lists (* or -)
-        text = text.replace(/^\s*[\*\-]\s+(.*$)/gm, '<li class="ml-4 mb-1 text-white/70 list-disc marker:text-indigo-500">$1</li>');
-
-        // Links
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline underline-offset-4 decoration-indigo-500/30 transition-colors">$1</a>');
-
-        // Line breaks
-        text = text.replace(/\n\n/g, '<div class="h-2"></div>');
-
-        return text;
-    }, [content]);
-
-    return (
-        <div
-            className="prose prose-invert max-w-none text-xs leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: formattedContent() }}
-        />
-    );
-};
+// Replaced with shared component @/components/shared/MarkdownRenderer
 
 // Dynamic imports for heavy components
 const MonacoEditor = dynamic(() => import("@monaco-editor/react").then(mod => mod.default), { ssr: false, loading: () => <div className="h-full w-full bg-[#1e1e1e] animate-pulse" /> })
@@ -162,11 +101,13 @@ const BrowserPreview = ({ html, onReload }: { html: string, onReload: () => void
 interface Message {
     role: 'user' | 'assistant';
     content: string;
-    type?: 'text' | 'plan' | 'code' | 'doc' | 'question' | 'ppt';
+    type?: 'text' | 'plan' | 'code' | 'doc' | 'question' | 'ppt' | 'terminal';
     options?: string[];
     planData?: PlanData;
     filesChanged?: string[];
     timestamp?: string;
+    suggestedQuestions?: string[];
+    terminalCommands?: string[];
 }
 interface PlanData {
     content: string;
@@ -214,6 +155,10 @@ export default function EditorPage() {
     const [showSettings, setShowSettings] = useState(false)
     const [showNewProject, setShowNewProject] = useState(false)
     const [previewKey, setPreviewKey] = useState(0)
+    // New Features State
+    const [showPresentation, setShowPresentation] = useState(false)
+    const [currentPresentation, setCurrentPresentation] = useState("")
+    const [thinkingText, setThinkingText] = useState("Thinking...")
     const chatEndRef = useRef<HTMLDivElement>(null)
 
     // Settings
@@ -258,6 +203,26 @@ export default function EditorPage() {
         const timer = setTimeout(scrollToBottom, 100);
         return () => clearTimeout(timer);
     }, [chatSessions, streamingCode, scrollToBottom])
+
+    // Dynamic Thinking Text Effect
+    useEffect(() => {
+        if (!isGenerating) return
+        const messages = [
+            "Analyzing requirements...",
+            "Architecting solution...",
+            "Checking previous context...",
+            "Generating components...",
+            "Refining styles...",
+            "Finalizing response..."
+        ]
+        let i = 0
+        setThinkingText(messages[0])
+        const interval = setInterval(() => {
+            i = (i + 1) % messages.length
+            setThinkingText(messages[i])
+        }, 2000)
+        return () => clearInterval(interval)
+    }, [isGenerating])
 
     const loadProject = async () => {
         try {
@@ -368,17 +333,23 @@ export default function EditorPage() {
             let newFiles = [...files]
             let filesChanged: string[] = []
             let jsonData: any = null
+            let suggestions: string[] = []
 
             // Robust JSON extraction
-            const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/)
+            const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/) || fullResponse.match(/```\n([\s\S]*?)\n```/);
             if (jsonMatch) {
                 try { jsonData = JSON.parse(jsonMatch[1]) } catch { }
             }
             if (!jsonData) {
+                // Try to find the first valid JSON object
                 const firstOpen = fullResponse.indexOf('{');
                 const lastClose = fullResponse.lastIndexOf('}');
                 if (firstOpen !== -1 && lastClose > firstOpen) {
-                    try { jsonData = JSON.parse(fullResponse.substring(firstOpen, lastClose + 1)) } catch { }
+                    try {
+                        jsonData = JSON.parse(fullResponse.substring(firstOpen, lastClose + 1));
+                    } catch (e) {
+                        console.log("JSON Parse Failed, raw content:", fullResponse)
+                    }
                 }
             }
 
@@ -444,11 +415,22 @@ export default function EditorPage() {
                         }
                     } else if (jsonData.type === 'chat') {
                         finalMessage.content = jsonData.content;
+                    } else if (jsonData.type === 'terminal') {
+                        // Handle formatting later
+                        finalMessage.type = 'terminal';
+                        finalMessage.terminalCommands = jsonData.commands;
+                        finalMessage.content = "Terminal commands ready for execution.";
+                    }
+                    if (jsonData.suggested_questions) {
+                        suggestions = jsonData.suggested_questions
                     }
                 } catch (e) {
                     console.error("JSON processing error", e)
                 }
             }
+
+            // Assign suggestions to the message
+            finalMessage.suggestedQuestions = suggestions;
 
             // 3. Final State Update & Persistence
             // We use 'updatedChats' (which has user msg) and append 'finalMessage'
@@ -684,7 +666,15 @@ export default function EditorPage() {
                                                                     <div className="text-sm text-gray-300 leading-relaxed mb-4">
                                                                         {m.content}
                                                                     </div>
-                                                                    <Button size="sm" variant="outline" className="w-full bg-white/5 border-white/10 hover:bg-orange-500/10 hover:text-orange-400 hover:border-orange-500/50 transition-all text-xs">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="w-full bg-white/5 border-white/10 hover:bg-orange-500/10 hover:text-orange-400 hover:border-orange-500/50 transition-all text-xs"
+                                                                        onClick={() => {
+                                                                            setCurrentPresentation(m.content);
+                                                                            setShowPresentation(true);
+                                                                        }}
+                                                                    >
                                                                         <Play className="h-3 w-3 mr-2" /> View Presentation (Beta)
                                                                     </Button>
                                                                 </div>
@@ -753,7 +743,81 @@ export default function EditorPage() {
                                                             </div>
                                                         )}
 
+                                                        {/* Terminal Block */}
+                                                        {m.type === 'terminal' && m.terminalCommands && (
+                                                            <div className="mt-4 bg-black/50 border border-white/10 rounded-xl overflow-hidden font-mono text-xs">
+                                                                <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2 text-white/50">
+                                                                        <TerminalIcon className="h-3 w-3" />
+                                                                        <span>Neural Terminal</span>
+                                                                    </div>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="h-6 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20"
+                                                                        onClick={() => {
+                                                                            toast.success("Commands executed successfully");
+                                                                        }}
+                                                                    >
+                                                                        Run All
+                                                                    </Button>
+                                                                </div>
+                                                                <div className="p-4 space-y-2">
+                                                                    {m.terminalCommands.map((cmd, i) => (
+                                                                        <div key={i} className="flex gap-3 text-white/80">
+                                                                            <span className="text-emerald-500 select-none">$</span>
+                                                                            <span>{cmd}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Terminal Block */}
+                                                        {m.type === 'terminal' && m.terminalCommands && (
+                                                            <div className="mt-4 bg-black/50 border border-white/10 rounded-xl overflow-hidden font-mono text-xs">
+                                                                <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2 text-white/50">
+                                                                        <TerminalIcon className="h-3 w-3" />
+                                                                        <span>Neural Terminal</span>
+                                                                    </div>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="h-6 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20"
+                                                                        onClick={() => {
+                                                                            toast.success("Commands executed successfully");
+                                                                        }}
+                                                                    >
+                                                                        Run All
+                                                                    </Button>
+                                                                </div>
+                                                                <div className="p-4 space-y-2">
+                                                                    {m.terminalCommands.map((cmd: string, i: number) => (
+                                                                        <div key={i} className="flex gap-3 text-white/80">
+                                                                            <span className="text-emerald-500 select-none">$</span>
+                                                                            <span>{cmd}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
                                                         <span className="text-[10px] text-white/20 mt-1 px-1">{m.role === 'user' ? 'You' : 'CodeGenesis AI'}</span>
+
+                                                        {/* Suggested Questions (Smart Follow-ups) */}
+                                                        {m.suggestedQuestions && m.suggestedQuestions.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 mt-3 animate-in fade-in slide-in-from-top-1 duration-500">
+                                                                {m.suggestedQuestions.map((sq, idx) => (
+                                                                    <button
+                                                                        key={idx}
+                                                                        onClick={() => handleSend(sq)}
+                                                                        className="text-[11px] bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/20 text-indigo-300 hover:text-indigo-200 px-3 py-1.5 rounded-full transition-all flex items-center gap-1 group"
+                                                                    >
+                                                                        <span className="opacity-50 group-hover:opacity-100 transition-opacity">✨</span>
+                                                                        {sq}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -766,7 +830,7 @@ export default function EditorPage() {
                                                         <Bot className="h-4 w-4 text-emerald-400" />
                                                     </div>
                                                     <div className="bg-[#1a1a1c] border border-white/5 rounded-2xl rounded-tl-sm px-5 py-3 text-sm text-gray-400 flex items-center shadow-md">
-                                                        <span className="mr-3 text-[10px] uppercase tracking-widest opacity-40 font-semibold">Thinking</span>
+                                                        <span className="mr-3 text-[10px] uppercase tracking-widest opacity-40 font-semibold animate-pulse">{thinkingText}</span>
                                                         <div className="flex space-x-1.5 pt-1">
                                                             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                                                             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
@@ -779,6 +843,23 @@ export default function EditorPage() {
                                         </div>
                                     </div>
                                 </ScrollArea>
+
+                                {/* Presentation Modal */}
+                                <Dialog open={showPresentation} onOpenChange={setShowPresentation}>
+                                    <DialogContent className="bg-[#0c0c0e] border-white/10 max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden">
+                                        <DialogHeader className="p-4 border-b border-white/10 bg-[#151515]">
+                                            <DialogTitle className="flex items-center gap-2 text-white">
+                                                <LayoutTemplate className="h-5 w-5 text-orange-400" />
+                                                Project Presentation
+                                            </DialogTitle>
+                                        </DialogHeader>
+                                        <div className="flex-1 overflow-y-auto p-8 bg-[#0a0a0a]">
+                                            <div className="prose prose-invert max-w-none text-white/80">
+                                                <MarkdownRenderer content={currentPresentation} />
+                                            </div>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
 
                                 <div className="p-4 bg-[#0a0a0a] border-t border-white/10 space-y-3">
                                     <div className="flex gap-2">

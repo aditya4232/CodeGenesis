@@ -21,185 +21,23 @@ import { useAuth } from "@/contexts/AuthContext"
 import { ConversationHistory } from "@/components/agent/ConversationHistory"
 import { ArtifactViewer } from "@/components/agent/ArtifactViewer"
 import {
+    type AgentConversation,
+    type AgentMessage,
     getUserConversations,
     createConversation,
     getConversation,
     addMessage,
-    generateTitle,
-    type AgentConversation,
-    type AgentMessage
+    generateTitle
 } from "@/lib/agent-db"
+import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer"
 
 // --- Markdown & Visual Parser ---
-const MarkdownRenderer = ({ content }: { content: string }) => {
-    // Basic Markdown Parser (Regex based for Zero Dependencies)
-    const formattedContent = useMemo(() => {
-        let text = content;
-
-        // Code Blocks (``` ... ```)
-        text = text.replace(/```([\s\S]*?)```/g, (match, code) => {
-            return `<pre class="bg-black/40 p-4 rounded-xl border border-white/10 my-4 font-mono text-xs overflow-x-auto text-emerald-300"><code>${code.trim()}</code></pre>`;
-        });
-
-        // Tables (| col | col |)
-        text = text.replace(/^\|(.+)\|$\n^\|([-| ]+)\|$\n((?:^\|.+\|$\n?)+)/gm, (match, header, separator, rows) => {
-            const hCols = header.split('|').filter(Boolean).map((c: string) => c.trim());
-            const rRows = rows.split('\n').filter(Boolean).map((r: string) => r.split('|').filter(Boolean).map(c => c.trim()));
-
-            return `
-                <div class="overflow-x-auto my-6 rounded-xl border border-white/10">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-white/5 text-white/70 font-mono text-[10px] uppercase tracking-wider">
-                            <tr>${hCols.map((c: any) => `<th class="px-4 py-3">${c}</th>`).join('')}</tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/5">
-                            ${rRows.map((row: any) => `<tr>${row.map((c: any) => `<td class="px-4 py-3 text-white/90">${c}</td>`).join('')}</tr>`).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        });
-
-        // Headings (###)
-        text = text.replace(/^### (.*$)/gm, '<h3 class="text-lg font-bold text-white mt-6 mb-2 flex items-center gap-2 tracking-tight">$1</h3>');
-        text = text.replace(/^## (.*$)/gm, '<h2 class="text-xl font-extrabold text-white mt-8 mb-4 border-b border-white/5 pb-2">$1</h2>');
-
-        // Bold (**text**)
-        text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-400 font-semibold">$1</strong>');
-
-        // Task Lists (- [ ] or - [x])
-        text = text.replace(/^\s*[\*\-]\s+\[ \]\s+(.*$)/gm, '<li class="ml-4 mb-2 text-white/60 list-none flex items-start gap-2"><div class="h-4 w-4 rounded border border-white/20 mt-0.5 shrink-0" /><span>$1</span></li>');
-        text = text.replace(/^\s*[\*\-]\s+\[x\]\s+(.*$)/gm, '<li class="ml-4 mb-2 text-emerald-400 list-none flex items-start gap-2"><div class="h-4 w-4 rounded border border-emerald-500 bg-emerald-500/20 mt-0.5 shrink-0 flex items-center justify-center text-[10px]">✓</div><span class="line-through opacity-50">$1</span></li>');
-
-        // Inline Code (`text`)
-        text = text.replace(/`([^`]+)`/g, '<code class="bg-indigo-500/10 text-indigo-300 px-1 py-0.5 rounded font-mono text-[10px]">$1</code>');
-
-        // Lists (* or -)
-        text = text.replace(/^\s*[\*\-]\s+(.*$)/gm, '<li class="ml-4 mb-1 text-white/70 list-disc marker:text-indigo-500">$1</li>');
-
-        // Links
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline underline-offset-4 decoration-indigo-500/30 transition-colors">$1</a>');
-
-        // Line breaks (High-density optimization)
-        text = text.replace(/\n\n/g, '<div class="h-2"></div>');
-
-        return text;
-    }, [content]);
-
-    return (
-        <div
-            className="prose prose-invert max-w-none agent-markdown"
-            dangerouslySetInnerHTML={{ __html: formattedContent }}
-        />
-    );
-};
+// --- Markdown & Visual Parser ---
+// Replaced with shared component @/components/shared/MarkdownRenderer
 
 // --- Persona Configuration ---
-const SYSTEM_PROMPT = `
-You are CodeGenesis AI (Neural Core v2.6). 
-You are an advanced AI Architectural Entity strictly optimized for technical excellence and visionary design.
-
-**OUTPUT CAPABILITIES:**
-- **Markdown Mastery**: Use ### for headers, **bold** for emphasis, and use TABLES (| col | col |) for comparative data or tech stacks.
-- **Blueprint Mode**: When designing apps, always provide a structured table for the Tech Stack.
-- **MCQ Protocol**: If user request is vague, ask 3-5 specific MCQs.
-- **Manifest**: ALWAYS list tasks to be performed and files affected.
-
-**FORMATTING PROTOCOL:**
-1. No raw symbols like ** unless they are markdown bold.
-2. Tables are MANDATORY for tech stack recommendations.
-3. Use bullet points for features.
-4. Tone: Visionary, Precise, Architectural.
-
-Example Stack Table:
-| Layer | Recommendation | Rationale |
-|---|---|---|
-| Frontend | Next.js 15 (App Router) | React 19 Support & Server Actions |
-| Styling | Tailwind v4 | Performance & Type-safe CSS |
-| Backend | Supabase | Real-time DB & Auth |
-
-**ARTIFACT GENERATION API (Strict JSON):**
-For Docs, PPTs, Spreadsheets, or Code, you MUST respond with a pure JSON block wrapped in \`\`\`json ... \`\`\`:
-
-1. **Documents/Reports**: Generate professional, well-structured documents with proper HTML formatting:
-{
-  "type": "doc",
-  "title": "Document Title",
-  "content": "<div class='document-content'>
-    <div class='doc-header'>
-      <h1 class='doc-title'>Main Title</h1>
-      <p class='doc-subtitle'>Subtitle or tagline</p>
-      <div class='doc-meta'>
-        <span>Date: [Current Date]</span>
-        <span>Version: 1.0</span>
-      </div>
-    </div>
-    
-    <div class='doc-section'>
-      <h2 class='section-title'>Executive Summary</h2>
-      <p class='section-content'>Overview paragraph...</p>
-    </div>
-    
-    <div class='doc-section'>
-      <h2 class='section-title'>Section Title</h2>
-      <p class='section-content'>Content paragraph with <strong>bold text</strong> and <em>italics</em>.</p>
-      
-      <h3 class='subsection-title'>Subsection</h3>
-      <ul class='doc-list'>
-        <li>Bullet point 1</li>
-        <li>Bullet point 2</li>
-      </ul>
-      
-      <div class='info-box'>
-        <strong>Key Point:</strong> Important information here
-      </div>
-    </div>
-    
-    <div class='doc-section'>
-      <h2 class='section-title'>Data & Metrics</h2>
-      <table class='doc-table'>
-        <thead>
-          <tr><th>Metric</th><th>Value</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Performance</td><td>98%</td><td>Excellent</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>"
-}
-
-2. **Presentations**: Create engaging slide decks with proper structure:
-{
-  "type": "ppt",
-  "title": "Presentation Title",
-  "slides": [
-    {
-      "title": "Title Slide",
-      "content": "<div class='slide-intro'><h1>Main Title</h1><p class='tagline'>Compelling subtitle</p></div>"
-    },
-    {
-      "title": "Content Slide",
-      "content": "<ul class='slide-points'><li><strong>Point 1:</strong> Description</li><li><strong>Point 2:</strong> Description</li></ul>"
-    }
-  ]
-}
-
-3. **Spreadsheets/Excel**: 
-{ "type": "spreadsheet", "title": "Data Grid Title", "columns": ["Column A", "Column B"], "data": [["Value 1", "Value 2"]] }
-
-4. **Code/Snippets**: 
-{ "type": "code", "title": "filename.ext", "language": "javascript", "content": "// Code here" }
-
-**DOCUMENT STYLING GUIDELINES:**
-- Use semantic HTML with proper class names
-- Structure with clear sections and hierarchies
-- Include metadata (date, version, author info)
-- Add visual separators and info boxes for key points
-- Use tables for data comparison
-- Add executive summaries for reports
-- Include clear section headings
-`;
+// Note: SYSTEM_PROMPT is now handled server-side in /api/agent/generate/route.ts
+// to ensure strict separation from the Editor persona.
 
 interface Message {
     id: string;
@@ -359,11 +197,11 @@ export default function AgentPage() {
         if (!val.trim() || isLoading) return;
 
         const provider = "groq"; // Default for agent
-        const key = apiKeys[provider];
-        if (!key) {
-            toast.error(`Please set ${provider} API key in Editor Settings first.`);
-            return;
-        }
+        const key = apiKeys[provider] || ""; // Allow empty key if server has env var
+
+        // Note: Logic moved to server-side in /api/agent/generate
+        // We only block if user has no key AND logic fails (handled by API error)
+
 
         const userMsg: Message = { id: Date.now().toString(), role: 'user', content: val, timestamp: new Date() };
         setMessages(prev => [...prev, userMsg]);
@@ -404,7 +242,7 @@ export default function AgentPage() {
 
         try {
             const history = messages.map(m => ({ role: m.role, content: m.content }));
-            const res = await fetch('/api/generate', {
+            const res = await fetch('/api/agent/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
