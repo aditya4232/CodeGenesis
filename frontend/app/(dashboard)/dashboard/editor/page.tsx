@@ -11,7 +11,7 @@ import {
     Archive, Globe, Palette, ExternalLink, Save, Monitor, Smartphone, Tablet,
     FolderTree, X, CheckCircle2, AlertCircle, Terminal as TerminalIcon, GitBranch,
     Home, FolderKanban, Settings2, ChevronDown, Undo2, Redo2, Copy, History,
-    Play, Square, LayoutTemplate, MousePointer2, RefreshCw, Key, ArrowRight, CheckSquare, Rocket, Lock, RotateCw
+    Play, Square, LayoutTemplate, MousePointer2, RefreshCw, Key, ArrowRight, CheckSquare, Rocket, Lock, RotateCw, Bot
 } from "lucide-react"
 import { toast } from "sonner"
 import { downloadProjectAsZip } from "@/lib/zip-utils"
