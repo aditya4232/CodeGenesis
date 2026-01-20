@@ -11,7 +11,7 @@ import {
     Archive, Globe, Palette, ExternalLink, Save, Monitor, Smartphone, Tablet,
     FolderTree, X, CheckCircle2, AlertCircle, Terminal as TerminalIcon, GitBranch,
     Home, FolderKanban, Settings2, ChevronDown, Undo2, Redo2, Copy, History,
-    Play, Square, LayoutTemplate, MousePointer2, RefreshCw, Key, ArrowRight, CheckSquare, Rocket
+    Play, Square, LayoutTemplate, MousePointer2, RefreshCw, Key, ArrowRight, CheckSquare, Rocket, Lock, RotateCw
 } from "lucide-react"
 import { toast } from "sonner"
 import { downloadProjectAsZip } from "@/lib/zip-utils"
@@ -98,11 +98,72 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
 const MonacoEditor = dynamic(() => import("@monaco-editor/react").then(mod => mod.default), { ssr: false, loading: () => <div className="h-full w-full bg-[#1e1e1e] animate-pulse" /> })
 const MonacoDiffEditor = dynamic(() => import("@monaco-editor/react").then(mod => mod.DiffEditor), { ssr: false })
 
+// --- Browser Preview Component ---
+const BrowserPreview = ({ html, onReload }: { html: string, onReload: () => void }) => {
+    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+    const [url, setUrl] = useState('localhost:3000');
+
+    return (
+        <div className="flex flex-col h-full bg-[#1e1e1e] border-l border-white/5">
+            {/* Browser Toolbar */}
+            <div className="h-10 bg-[#252526] border-b border-black/20 flex items-center px-3 gap-3">
+                <div className="flex gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
+                    <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                    <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                    <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+                </div>
+
+                <div className="flex-1 flex max-w-xl mx-auto">
+                    <div className="flex-1 bg-[#3c3c3c] rounded-md h-7 flex items-center px-3 text-[10px] text-white/50 gap-2 border border-black/20 focus-within:border-indigo-500/50 focus-within:bg-[#454545] transition-colors relative">
+                        <Lock className="h-2.5 w-2.5 opacity-50" />
+                        <span className="flex-1 text-center font-mono">localhost:3000</span>
+                        <RotateCw className="h-3 w-3 hover:text-white cursor-pointer transition-colors" onClick={onReload} />
+                    </div>
+                </div>
+
+                <div className="flex bg-black/20 rounded-lg p-0.5 border border-white/5">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className={`h-6 w-6 rounded-md ${viewMode === 'desktop' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white'}`}
+                        onClick={() => setViewMode('desktop')}
+                    >
+                        <Monitor className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className={`h-6 w-6 rounded-md ${viewMode === 'mobile' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white'}`}
+                        onClick={() => setViewMode('mobile')}
+                    >
+                        <Smartphone className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+            </div>
+
+            {/* Content Area */}
+            <div className={`flex-1 overflow-hidden relative bg-[#1e1e1e] flex justify-center py-4 transition-all duration-300 ${viewMode === 'mobile' ? 'bg-[#151515]' : ''}`}>
+                <div className={`transition-all duration-500 relative border border-white/5 shadow-2xl bg-white ${viewMode === 'mobile' ? 'w-[375px] h-[667px] rounded-[3rem] ring-8 ring-[#252526]' : 'w-full h-full'}`}>
+                    {viewMode === 'mobile' && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#252526] rounded-b-xl z-20" />}
+
+                    <iframe
+                        srcDoc={html}
+                        className="w-full h-full"
+                        style={{ borderRadius: viewMode === 'mobile' ? '2.5rem' : '0' }}
+                        sandbox="allow-scripts allow-modals"
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Types
 interface Message {
     role: 'user' | 'assistant';
     content: string;
-    type?: 'text' | 'plan' | 'code' | 'doc';
+    type?: 'text' | 'plan' | 'code' | 'doc' | 'question' | 'ppt';
+    options?: string[];
     planData?: PlanData;
     filesChanged?: string[];
     timestamp?: string;
@@ -237,6 +298,7 @@ export default function EditorPage() {
     }
 
     // AI Generation Handler
+    // AI Generation Handler
     const handleSend = async (customInput?: string) => {
         const textToSend = customInput || input
         if (!textToSend.trim() || isGenerating) return
@@ -248,17 +310,19 @@ export default function EditorPage() {
             return
         }
 
-        const userMsg: Message = { role: 'user', content: textToSend, type: 'text' }
-        setChatSessions(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, userMsg] } : c))
+        // 1. Optimistic Update (User Message)
+        const userMsg: Message = { role: 'user', content: textToSend, type: 'text', timestamp: new Date().toISOString() }
+        let updatedChats = chatSessions.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, userMsg] } : c)
 
+        setChatSessions(updatedChats)
         setIsGenerating(true)
         setInput("")
         setTerminalOutput(prev => [...prev, `$ User: ${textToSend}`, `$ Processing...`])
 
         try {
-            // Prepare context
-            const currentChat = chatSessions.find(c => c.id === activeChatId)
-            const history = currentChat ? [...currentChat.messages, userMsg].map(m => ({ role: m.role, content: m.content })) : []
+            // Prepare context with the UPDATED chat history
+            const currentChat = updatedChats.find(c => c.id === activeChatId)
+            const history = currentChat ? currentChat.messages.map(m => ({ role: m.role, content: m.content })) : []
             const fileContext = files.reduce((acc, f) => ({ ...acc, [f.name]: f.content }), {})
 
             const res = await fetch('/api/generate', {
@@ -299,20 +363,17 @@ export default function EditorPage() {
                 }
             }
 
-            // Extract JSON blocks for specialized handling
-            let finalMessage: Message = { role: 'assistant', content: fullResponse, type: 'text' }
+            // 2. Process AI Response & Files
+            let finalMessage: Message = { role: 'assistant', content: fullResponse, type: 'text', timestamp: new Date().toISOString() }
             let newFiles = [...files]
             let filesChanged: string[] = []
-
-            // Attempt to parse JSON - either inside markdown blocks or raw
-            // Attempt to parse JSON - Robust Strategy
             let jsonData: any = null
-            const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/)
 
+            // Robust JSON extraction
+            const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/)
             if (jsonMatch) {
                 try { jsonData = JSON.parse(jsonMatch[1]) } catch { }
             }
-
             if (!jsonData) {
                 const firstOpen = fullResponse.indexOf('{');
                 const lastClose = fullResponse.lastIndexOf('}');
@@ -326,38 +387,41 @@ export default function EditorPage() {
                     if (jsonData.type === 'plan') {
                         finalMessage = {
                             role: 'assistant',
-                            content: jsonData.content || jsonData.thought || "I've created a plan:",
+                            content: jsonData.content || jsonData.thought || "I've drafted a plan.",
                             type: 'plan',
                             planData: {
                                 content: jsonData.content || jsonData.thought,
                                 steps: jsonData.steps
                             }
                         }
-                        setTerminalOutput(prev => [...prev, `$ Plan proposed. Waiting for user approval.`])
+                        setTerminalOutput(prev => [...prev, `$ Plan proposed.`])
                     }
                     else if (jsonData.type === 'doc') {
+                        finalMessage = { role: 'assistant', content: jsonData.content, type: 'doc' }
+                    }
+                    else if (jsonData.type === 'ppt') {
                         finalMessage = {
                             role: 'assistant',
-                            content: jsonData.content || "Generating document...",
-                            type: 'doc'
+                            content: jsonData.content || "Generating slides...",
+                            type: 'ppt'
                         }
                     }
-                    else if (jsonData.type === 'chat') {
+                    else if (jsonData.type === 'question') {
                         finalMessage = {
                             role: 'assistant',
-                            content: jsonData.content || jsonData.thought || fullResponse,
-                            type: 'text'
+                            content: jsonData.content || "Selection required:",
+                            type: 'question',
+                            options: jsonData.options || []
                         }
                     }
                     else if (jsonData.type === 'code') {
                         finalMessage = {
                             role: 'assistant',
-                            content: jsonData.thought || jsonData.content || "Generating code...",
+                            content: jsonData.thought || "Applying changes...",
                             type: 'code',
                             filesChanged: jsonData.files?.map((f: any) => f.name) || []
                         }
 
-                        // Apply file changes
                         if (jsonData.files && Array.isArray(jsonData.files)) {
                             jsonData.files.forEach((f: any) => {
                                 const idx = newFiles.findIndex(existing => existing.name === f.name)
@@ -368,31 +432,38 @@ export default function EditorPage() {
                                     isModified: true,
                                     previousContent: idx >= 0 ? newFiles[idx].content : ''
                                 }
-
                                 if (idx >= 0) newFiles[idx] = newFileObj
                                 else newFiles.push(newFileObj)
 
-                                filesChanged.push(f.name)
+                                if (!filesChanged.includes(f.name)) filesChanged.push(f.name)
                                 if (!activeFile && f.name.includes('html')) setActiveFile(f.name)
                             })
                             setFiles(newFiles)
                             setPreviewKey(k => k + 1)
-                            setTerminalOutput(prev => [...prev, `$ Applied changes to ${filesChanged.length} files.`])
+                            setTerminalOutput(prev => [...prev, `$ Updated ${filesChanged.length} files.`])
                         }
+                    } else if (jsonData.type === 'chat') {
+                        finalMessage.content = jsonData.content;
                     }
                 } catch (e) {
-                    console.error("Specialized JSON processing failed", e)
+                    console.error("JSON processing error", e)
                 }
             }
 
-            setChatSessions(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, finalMessage] } : c))
+            // 3. Final State Update & Persistence
+            // We use 'updatedChats' (which has user msg) and append 'finalMessage'
+            const finalChats = updatedChats.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, finalMessage] } : c)
+            setChatSessions(finalChats)
 
-            // Background Save
             if (projectId) {
                 await fetch(`/api/projects/${projectId}/data`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ files: newFiles, chats: chatSessions, projectName: projectConfig.name })
+                    body: JSON.stringify({
+                        files: newFiles,
+                        chats: finalChats, // Send the completely updated chat history
+                        projectName: projectConfig.name
+                    })
                 })
             }
 
@@ -558,68 +629,112 @@ export default function EditorPage() {
 
                                         <div className="space-y-6 pb-4">
                                             {chatSessions.find(c => c.id === activeChatId)?.messages.map((m, i) => (
-                                                <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                                    <div className={`max-w-[95%] rounded-2xl px-5 py-3 text-sm shadow-sm ${m.role === 'user'
-                                                        ? 'bg-indigo-600 text-white rounded-tr-sm'
-                                                        : 'bg-[#1a1a1c] border border-white/5 text-gray-200 rounded-tl-sm'
-                                                        }`}>
-                                                        {/* Text Content */}
-                                                        {/* Doc UI */}
-                                                        {m.type === 'doc' ? (
-                                                            <div className="bg-[#0c0c0e] p-8 rounded-2xl border border-white/10 shadow-2xl my-2 max-w-3xl w-full mx-auto relative overflow-hidden group">
-                                                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                                    <FileEdit className="h-24 w-24 text-indigo-500" />
-                                                                </div>
-                                                                <div className="flex items-center gap-3 mb-8 pb-4 border-b border-white/5 relative z-10">
-                                                                    <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
-                                                                        <FileEdit className="h-5 w-5" />
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className="text-xs font-mono uppercase tracking-widest text-indigo-400">Generated Report</div>
-                                                                        <div className="text-sm text-white/60">Neural Analysis v2.7</div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="report-content relative z-10">
-                                                                    <style>{`
-                                                                        .report-content h1 { font-size: 2.5rem; font-weight: 800; color: white; margin-bottom: 1.5rem; line-height: 1.2; letter-spacing: -0.02em; }
-                                                                        .report-content h2 { font-size: 1.75rem; font-weight: 700; color: #e5e7eb; margin-top: 2.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; }
-                                                                        .report-content h3 { font-size: 1.25rem; font-weight: 600; color: #a5b4fc; margin-top: 2rem; margin-bottom: 0.75rem; }
-                                                                        .report-content p { color: #d1d5db; line-height: 1.8; margin-bottom: 1.25rem; font-size: 1.05rem; }
-                                                                        .report-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; color: #d1d5db; }
-                                                                        .report-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.5rem; color: #d1d5db; }
-                                                                        .report-content li { margin-bottom: 0.5rem; }
-                                                                        .report-content strong { color: white; font-weight: 700; }
-                                                                        .report-content blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; margin-left: 0; font-style: italic; color: #9ca3af; }
-                                                                    `}</style>
-                                                                    <div dangerouslySetInnerHTML={{ __html: m.content }} />
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <MarkdownRenderer content={m.content} />
-                                                        )}
+                                                <div key={i} className={`flex gap-3 mb-6 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 border shadow-lg ${m.role === 'user' ? 'bg-indigo-600 border-indigo-400/30' : 'bg-emerald-600 border-emerald-400/30'}`}>
+                                                        {m.role === 'user' ? <div className="text-xs font-bold text-white">Yo</div> : <Bot className="h-4 w-4 text-white" />}
+                                                    </div>
 
-                                                        {/* Plan UI */}
+                                                    <div className={`flex flex-col max-w-[85%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                                        <div className={`rounded-2xl px-5 py-3 text-sm shadow-md ${m.role === 'user'
+                                                            ? 'bg-[#2a2a2c] text-white rounded-tr-sm border border-white/5'
+                                                            : 'bg-[#1a1a1c] border border-white/5 text-gray-200 rounded-tl-sm'
+                                                            }`}>
+
+                                                            {/* Content Rendering */}
+                                                            {m.type === 'doc' ? (
+                                                                <div className="bg-[#0c0c0e] p-8 rounded-2xl border border-white/10 shadow-2xl my-2 max-w-3xl w-full mx-auto relative overflow-hidden group">
+                                                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                                        <FileEdit className="h-24 w-24 text-indigo-500" />
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3 mb-8 pb-4 border-b border-white/5 relative z-10">
+                                                                        <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                                                                            <FileEdit className="h-5 w-5" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-xs font-mono uppercase tracking-widest text-indigo-400">Generated Report</div>
+                                                                            <div className="text-sm text-white/60">Neural Analysis v2.7</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="report-content relative z-10">
+                                                                        <style>{`
+                                .report-content h1 { font-size: 2.5rem; font-weight: 800; color: white; margin-bottom: 1.5rem; line-height: 1.2; letter-spacing: -0.02em; }
+                                .report-content h2 { font-size: 1.75rem; font-weight: 700; color: #e5e7eb; margin-top: 2.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; }
+                                .report-content h3 { font-size: 1.25rem; font-weight: 600; color: #a5b4fc; margin-top: 2rem; margin-bottom: 0.75rem; }
+                                .report-content p { color: #d1d5db; line-height: 1.8; margin-bottom: 1.25rem; font-size: 1.05rem; }
+                                .report-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; color: #d1d5db; }
+                                .report-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.5rem; color: #d1d5db; }
+                                .report-content li { margin-bottom: 0.5rem; }
+                                .report-content strong { color: white; font-weight: 700; }
+                                .report-content blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; margin-left: 0; font-style: italic; color: #9ca3af; }
+                            `}</style>
+                                                                        <div dangerouslySetInnerHTML={{ __html: m.content }} />
+                                                                    </div>
+                                                                </div>
+                                                            ) : m.type === 'ppt' ? (
+                                                                <div className="bg-[#0c0c0e] p-5 rounded-2xl border border-white/10 shadow-2xl my-2 max-w-2xl w-full mx-auto relative overflow-hidden group">
+                                                                    <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/5">
+                                                                        <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
+                                                                            <LayoutTemplate className="h-4 w-4" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-xs font-mono uppercase tracking-widest text-orange-400">Presentation Deck</div>
+                                                                            <div className="text-[10px] text-white/50">Neural Slide Generator</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="text-sm text-gray-300 leading-relaxed mb-4">
+                                                                        {m.content}
+                                                                    </div>
+                                                                    <Button size="sm" variant="outline" className="w-full bg-white/5 border-white/10 hover:bg-orange-500/10 hover:text-orange-400 hover:border-orange-500/50 transition-all text-xs">
+                                                                        <Play className="h-3 w-3 mr-2" /> View Presentation (Beta)
+                                                                    </Button>
+                                                                </div>
+                                                            ) : m.type === 'question' ? (
+                                                                <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-4 space-y-3 mt-2 slide-in-from-bottom-2 fade-in duration-300">
+                                                                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">
+                                                                        <Sparkles className="h-3.5 w-3.5" /> Decision Point
+                                                                    </div>
+                                                                    <MarkdownRenderer content={m.content} />
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                        {m.options?.map((opt, idx) => (
+                                                                            <Button
+                                                                                key={idx}
+                                                                                variant="outline"
+                                                                                className="justify-start text-left h-auto py-3 px-4 border-white/5 bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-300 hover:border-indigo-500/50 transition-all text-xs rounded-lg group"
+                                                                                onClick={() => handleSend(opt)}
+                                                                            >
+                                                                                <span className="mr-3 opacity-40 font-mono group-hover:text-indigo-400 transition-colors">{String.fromCharCode(65 + idx)})</span>
+                                                                                <span className="truncate">{opt}</span>
+                                                                            </Button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <MarkdownRenderer content={m.content} />
+                                                            )}
+                                                        </div>
+
+                                                        {/* Plan UI - Positioned below the bubble in the column */}
                                                         {m.type === 'plan' && m.planData && (
-                                                            <div className="mt-4 bg-black/20 rounded-xl p-3 border border-white/5 space-y-3">
+                                                            <div className="mt-2 w-full max-w-md bg-black/40 rounded-xl p-4 border border-white/10 space-y-4">
                                                                 <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
                                                                     <GitBranch className="h-3.5 w-3.5" /> Implementation Plan
                                                                 </div>
                                                                 <div className="space-y-2">
                                                                     {m.planData.steps.map((step) => (
-                                                                        <div key={step.id} className="flex items-start gap-3 p-2 rounded-lg bg-white/5">
+                                                                        <div key={step.id} className="flex items-start gap-3 p-2.5 rounded-lg bg-white/5 border border-white/5">
                                                                             <div className="mt-0.5">
                                                                                 <CheckSquare className="h-4 w-4 text-white/20" />
                                                                             </div>
                                                                             <div>
-                                                                                <div className="text-xs font-medium text-white">{step.title}</div>
-                                                                                <div className="text-[10px] text-white/50">{step.description}</div>
+                                                                                <div className="text-xs font-bold text-white">{step.title}</div>
+                                                                                <div className="text-[11px] text-white/50 leading-tight mt-0.5">{step.description}</div>
                                                                             </div>
                                                                         </div>
                                                                     ))}
                                                                 </div>
                                                                 <Button
                                                                     size="sm"
-                                                                    className="w-full bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/50 mt-2 h-8 text-xs gap-2"
+                                                                    className="w-full bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/20 h-8 text-xs gap-2 font-medium"
                                                                     onClick={() => handleSend("Looks good, proceed with generating the code.")}
                                                                 >
                                                                     <Play className="h-3 w-3" /> Approve & Build
@@ -629,32 +744,34 @@ export default function EditorPage() {
 
                                                         {/* Files Changed UI */}
                                                         {m.filesChanged && m.filesChanged.length > 0 && (
-                                                            <div className="mt-3 flex flex-wrap gap-1.5 pt-2 border-t border-white/5">
+                                                            <div className="mt-2 flex flex-wrap gap-1.5 w-full justify-end">
                                                                 {m.filesChanged.map(f => (
-                                                                    <Badge key={f} variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer px-2 py-0.5" onClick={() => { setActiveFile(f); setActiveTab('code') }}>
+                                                                    <Badge key={f} variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 cursor-pointer px-2 py-0.5 transition-colors" onClick={() => { setActiveFile(f); setActiveTab('code') }}>
                                                                         <FileEdit className="h-3 w-3 mr-1" /> {f}
                                                                     </Badge>
                                                                 ))}
                                                             </div>
                                                         )}
+
+                                                        <span className="text-[10px] text-white/20 mt-1 px-1">{m.role === 'user' ? 'You' : 'CodeGenesis AI'}</span>
                                                     </div>
-                                                    <span className="text-[10px] text-white/20 mt-1 px-1">{m.role === 'user' ? 'You' : 'CodeGenesis AI'}</span>
                                                 </div>
                                             ))}
 
+
                                             {/* Streaming Indicator */}
                                             {isGenerating && (
-                                                <div className="flex items-start gap-3">
-                                                    <div className="bg-[#1a1a1c] border border-white/5 rounded-2xl rounded-tl-sm px-5 py-3">
-                                                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                                                            <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                                                            {streamingCode ? 'Writing code...' : 'Thinking...'}
+                                                <div className="flex gap-3 mb-6 animate-pulse px-4">
+                                                    <div className="h-8 w-8 rounded-full bg-emerald-600/20 border border-emerald-400/20 flex items-center justify-center shrink-0">
+                                                        <Bot className="h-4 w-4 text-emerald-400" />
+                                                    </div>
+                                                    <div className="bg-[#1a1a1c] border border-white/5 rounded-2xl rounded-tl-sm px-5 py-3 text-sm text-gray-400 flex items-center shadow-md">
+                                                        <span className="mr-3 text-[10px] uppercase tracking-widest opacity-40 font-semibold">Thinking</span>
+                                                        <div className="flex space-x-1.5 pt-1">
+                                                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
                                                         </div>
-                                                        {streamingCode && (
-                                                            <div className="mt-2 text-xs text-gray-500 font-mono line-clamp-3 opacity-50">
-                                                                {streamingCode.slice(-100)}
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             )}
@@ -795,40 +912,11 @@ export default function EditorPage() {
 
                                 {/* Preview */}
                                 {(activeTab === 'preview' || activeTab === 'visual') && hasFiles && (
-                                    <div className="absolute inset-0 bg-[#000] flex flex-col items-center justify-center p-8 text-black">
-                                        <div className="bg-white rounded-lg shadow-2xl overflow-hidden w-full max-w-6xl h-full flex flex-col transition-all border border-gray-800 ring-4 ring-gray-900/50">
-                                            <div className="h-9 bg-[#e5e5e5] flex items-center px-4 gap-2 border-b border-gray-300">
-                                                <div className="flex gap-1.5 opacity-80 hover:opacity-100 transition-opacity">
-                                                    <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-                                                    <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-                                                    <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
-                                                </div>
-                                                <div className="flex-1 text-center flex justify-center">
-                                                    <div className="bg-white px-3 w-1/2 rounded-md text-[11px] py-1 text-gray-500 font-mono flex items-center justify-center gap-1 shadow-sm border border-gray-200">
-                                                        <Globe className="h-3 w-3 opacity-50" />
-                                                        localhost:3000
-                                                    </div>
-                                                </div>
-                                                <div className="w-10"></div>
-                                            </div>
-                                            <div className="flex-1 relative bg-white">
-                                                <iframe
-                                                    key={previewKey}
-                                                    srcDoc={getPreviewHtml()}
-                                                    className="w-full h-full border-none bg-white font-sans"
-                                                    sandbox="allow-scripts allow-modals"
-                                                />
-                                                {activeTab === 'visual' && (
-                                                    <div className="absolute inset-0 pointer-events-none border-4 border-indigo-500/30 z-10 flex items-end justify-center pb-8 animate-in fade-in duration-300">
-                                                        <div className="bg-indigo-600 text-white px-5 py-2.5 rounded-full shadow-xl shadow-indigo-600/30 text-sm flex items-center gap-2 pointer-events-auto hover:scale-105 transition-transform">
-                                                            <MousePointer2 className="h-4 w-4" /> Visual Editing Mode
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                    <div className="absolute inset-0 bg-[#0c0c0e]">
+                                        <BrowserPreview html={getPreviewHtml()} onReload={() => setPreviewKey(k => k + 1)} />
                                     </div>
                                 )}
+
 
                                 {/* Code */}
                                 {activeTab === 'code' && hasFiles && (
@@ -897,9 +985,9 @@ export default function EditorPage() {
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </ResizablePanel>
-                </ResizablePanelGroup>
+                        </div >
+                    </ResizablePanel >
+                </ResizablePanelGroup >
 
                 <NewProjectModal open={showNewProject} onOpenChange={setShowNewProject} />
 
@@ -933,7 +1021,7 @@ export default function EditorPage() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-            </div>
-        </TooltipProvider>
+            </div >
+        </TooltipProvider >
     )
 }
