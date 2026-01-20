@@ -1,8 +1,10 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, firebaseAuth } from '@/lib/firebase';
+import { User, firebaseAuth, auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { onIdTokenChanged } from 'firebase/auth';
+import Cookies from 'js-cookie';
 
 interface AuthContextType {
     user: User | null;
@@ -21,9 +23,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
+    const setAuthCookie = async (user: User) => {
+        try {
+            const token = await user.getIdToken();
+            Cookies.set('firebase-token', token, {
+                expires: 1 / 24, // 1 hour
+                sameSite: 'strict',
+                secure: window.location.protocol === 'https:'
+            });
+        } catch (error) {
+            console.error('Error setting auth cookie:', error);
+        }
+    };
+
     useEffect(() => {
-        const unsubscribe = firebaseAuth.onAuthStateChanged((user) => {
-            setUser(user);
+        // Listen for token changes to keep cookie fresh
+        const unsubscribe = onIdTokenChanged(auth, async (user) => {
+            if (user) {
+                await setAuthCookie(user);
+                setUser(user);
+            } else {
+                Cookies.remove('firebase-token');
+                setUser(null);
+            }
             setLoading(false);
         });
 
@@ -33,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signIn = async (email: string, password: string) => {
         const result = await firebaseAuth.signIn(email, password);
         if (result.user) {
+            // Explicitly set cookie to await it before returning
+            // This prevents race condition where router.push happens before cookie is set
+            await setAuthCookie(result.user);
             setUser(result.user);
         }
         return result;
@@ -41,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signUp = async (email: string, password: string, displayName?: string) => {
         const result = await firebaseAuth.signUp(email, password, displayName);
         if (result.user) {
+            await setAuthCookie(result.user);
             setUser(result.user);
         }
         return result;
@@ -49,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signInWithGoogle = async () => {
         const result = await firebaseAuth.signInWithGoogle();
         if (result.user) {
+            await setAuthCookie(result.user);
             setUser(result.user);
         }
         return result;
@@ -56,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signOut = async () => {
         await firebaseAuth.signOut();
+        Cookies.remove('firebase-token');
         setUser(null);
         router.push('/');
     };
