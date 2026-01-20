@@ -13,9 +13,9 @@ const isPublicRoute = createRouteMatcher([
     '/api/test-db'
 ]);
 
-export default clerkMiddleware((auth, request) => {
+export default clerkMiddleware(async (auth, request) => {
     if (!isPublicRoute(request)) {
-        auth().protect();
+        await auth.protect();
     }
     return NextResponse.next();
 });
